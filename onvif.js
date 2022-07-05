@@ -15,16 +15,12 @@
  *
  */
 
- let HOSTNAME = '192.168.1.15',
- PORT = 80,
- USERNAME = 'admin',
- PASSWORD = 'pass';
 
 
 const EventMethodTypes = { PULL: "pull", SUBSCRIBE: "subscribe" }
 
-let EVENT_RECEIVER_IP_ADDRESS = '192.168.1.70'; // the IP Address and Port for a HTTP Server that the camera will send events to. Change this.
-let EVENT_RECEIVER_PORT = 8086;
+// let EVENT_RECEIVER_IP_ADDRESS = '192.168.1.70'; // the IP Address and Port for a HTTP Server that the camera will send events to. Change this.
+// let EVENT_RECEIVER_PORT = 8086;
 
 // PICK WHICH EVENT METHOD TOUSE
 // let EVENT_MODE = EventMethodTypes.PULL;     // <- PICK ONE
@@ -49,36 +45,36 @@ let flow = require('nimble');
 let http = require('http');
 let server = null;
 
-if (EVENT_MODE == EventMethodTypes.SUBSCRIBE) {
- // Create a HTTP Server to receive Events
-     server = http.createServer(function(request, response) {
- let body = '';
- request.on('data', chunk => {
-     body += chunk;
- })
- request.on('end', () => {
-     //end of data
-     if (request.method == "POST") {
-         console.log('HTTP POST Message received on ' + request.url);
-         console.log(body);
-         console.log('');
-         response.writeHead(200, { "Content-Type": "text\plain" });
-         response.end("received POST request.");
-         return;
-     }
-     else {
-         console.log('Unexpected connect to HTTP Server to ' + request.url);
-         response.writeHead(200, { "Content-Type": "text\plain" });
-         response.end("Undefined request .");
-         return;
-     }
- })
+// if (EVENT_MODE == EventMethodTypes.SUBSCRIBE) {
+//  // Create a HTTP Server to receive Events
+//      server = http.createServer(function(request, response) {
+//  let body = '';
+//  request.on('data', chunk => {
+//      body += chunk;
+//  })
+//  request.on('end', () => {
+//      //end of data
+//      if (request.method == "POST") {
+//          console.log('HTTP POST Message received on ' + request.url);
+//          console.log(body);
+//          console.log('');
+//          response.writeHead(200, { "Content-Type": "text\plain" });
+//          response.end("received POST request.");
+//          return;
+//      }
+//      else {
+//          console.log('Unexpected connect to HTTP Server to ' + request.url);
+//          response.writeHead(200, { "Content-Type": "text\plain" });
+//          response.end("Undefined request .");
+//          return;
+//      }
+//  })
 
-});
+// });
 
-server.listen(EVENT_RECEIVER_PORT);
-console.log("Server running on port " + EVENT_RECEIVER_PORT);
-}
+// server.listen(EVENT_RECEIVER_PORT);
+// console.log("Server running on port " + EVENT_RECEIVER_PORT);
+// }
 
 
 

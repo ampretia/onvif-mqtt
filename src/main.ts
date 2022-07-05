@@ -7,11 +7,12 @@ sourceMapSupport.install();
 
 // import * as env from 'env-var';
 import { logger } from './logger';
-import chalk = require('chalk');
+import chalk from 'chalk';
 import { readFileSync } from 'fs';
-import path = require('path');
+import * as path from 'path';
+import Camera, { CamEvent } from './camera';
 
-logger.debug('Starting runhfsc...');
+import MQTTService from './mqtt-service';
 
 const pjson = readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8');
 const version = JSON.parse(pjson).version;
@@ -24,18 +25,37 @@ console.log(
 / /_/ / / / / |/ / / __/  /_____/  / / / / / / /_/ / /_/ /_  
 \\____/_/ /_/|___/_/_/             /_/ /_/ /_/\\__, /\\__/\\__/  
                                                /_/           
-`) +
-        `
-runhfsc ${version}
-`,
+`),
 );
+
+let mqtt: MQTTService;
 
 /** Main function */
 const main = async () => {
-    logger.info('hello');
+    logger.info(`onvif-mqtt  v${version}`);
+
+    mqtt = await MQTTService.getMQTT();
+
+    const cam = await Camera.getCam();
+    const info = await cam.getDeviceInformation();
+    logger.info(info.info);
+
+    const cameraDataTime = await cam.getSystemDateAndTime();
+    logger.info(`Camera Time is ${cameraDataTime.info}`);
+
+    const cameraCapabilities = await cam.getCapabilities();
+    logger.info(`${JSON.stringify(cameraCapabilities.info)}`);
+
+    cam.setEventHandler(async (camEvent: CamEvent) => {
+        await mqtt.processEvent(camEvent);
+    });
+    logger.info(`Event handler added`);
 };
 
-main().catch((e: any) => {
-    console.log(e);
-    process.exit(1);
-});
+main()
+    .then(() => {
+        logger.info('System configured and running');
+    })
+    .catch((e: any) => {
+        logger.error(e);
+    });

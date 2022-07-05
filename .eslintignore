@@ -8,3 +8,5 @@ dist
 coverage
 
 facade-14
+
+src/**/*.js
