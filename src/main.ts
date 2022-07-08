@@ -36,7 +36,10 @@ const main = async () => {
 
     mqtt = await MQTTService.getMQTT();
 
+    logger.info(`Connect to MQTT`);
     const cam = await Camera.getCam();
+
+    logger.info(`Connected to Camera`);
     const info = await cam.getDeviceInformation();
     logger.info(info.info);
 
@@ -58,4 +61,5 @@ main()
     })
     .catch((e: any) => {
         logger.error(e);
+        logger.error(e.stack);
     });

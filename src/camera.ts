@@ -18,24 +18,48 @@ export default class Camera {
     }
 
     public static async getCam(): Promise<any> {
-        return new Promise((resolve, reject) => {
-            const cam = new Cam(
-                {
-                    hostname: config.CAMERA_HOSTNAME,
-                    username: config.CAMERA_USER,
-                    password: config.CAMERA_PASSWORD,
-                    port: config.CAMERA_PORT,
-                    timeout: 10000,
-                    preserveAddress: true, // Enables NAT support and re-writes for PullPointSubscription URL
-                },
-                (err: any) => {
-                    if (err) {
-                        reject(err);
-                    }
+        let cam;
+        let retries = config.CAMERA_CONNECT_RETRIES;
+        const retryDelay = config.CAMERA_RETRY_DELAY;
+        while (!cam) {
+            try {
+                logger.info(`Creating new Cam - retry left:${retries}`);
+                cam = await new Promise((resolve, reject) => {
+                    const cam = new Cam(
+                        {
+                            hostname: config.CAMERA_HOSTNAME,
+                            username: config.CAMERA_USER,
+                            password: config.CAMERA_PASSWORD,
+                            port: config.CAMERA_PORT,
+                            timeout: 10000,
+                            autoconnect: true,
+                            preserveAddress: true, // Enables NAT support and re-writes for PullPointSubscription URL
+                        },
+                        (err: any) => {
+                            if (err) {
+                                logger.error('Callback error');
+                                reject(err);
+                            }
 
-                    resolve(new Camera(cam));
-                },
-            );
+                            resolve(new Camera(cam));
+                        },
+                    );
+                });
+            } catch (error) {
+                if (retries < 1) {
+                    throw error;
+                }
+                retries--;
+                await this.wait(retryDelay);
+            }
+        }
+
+        return cam;
+    }
+
+    private static async wait(time: number): Promise<void> {
+        return new Promise((resolve) => {
+            setTimeout(() => resolve(), time);
         });
     }
 
