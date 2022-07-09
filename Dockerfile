@@ -29,4 +29,5 @@ RUN npm ci --only=production
 USER node
 ENV NODE_ENV=production
 WORKDIR /usr/src/app
-ENTRYPOINT [ "/tini", "--", "node","lib/main.js" ]
+# ENTRYPOINT [ "/tini", "--", "node","lib/main.js" ]
+ENTRYPOINT [ "node","lib/main.js" ]
