@@ -12,6 +12,10 @@ Once I knew there were events, _obviously_ the next thing was to bridge these to
 
 **Note, this is running on my own systems and doing what it needs to. There are a few rough edges - so treat this as  BETA rather than a PRODUCT**
 
+## Credits
+
+This would have been impossible with the [onvif repo](https://github.com/agsh/onvif)
+
 ## Setup
 
 1. Need a camera that supports the ONVIF protocol
