@@ -1,7 +1,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-FROM node:16 AS builder
+FROM node:20 AS builder
 
 WORKDIR /usr/src/app
 
@@ -10,7 +10,7 @@ COPY --chown=node:node . /usr/src/app
 RUN npm ci && npm run build && npm shrinkwrap
 
 
-FROM node:16 AS production
+FROM node:20 AS production
 
 # Setup tini to work better handle signals
 ENV TINI_VERSION v0.19.0
