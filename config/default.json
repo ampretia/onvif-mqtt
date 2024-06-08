@@ -1,0 +1,22 @@
+{
+    "mqtt":{
+        "broker_host":"",
+        "topic_root":"",
+        "username":"",
+        "password":""
+    },
+    "cameras":{
+        "camera_a": {
+            "hostname":"",
+            "onvif_port":"",
+            "username":"",
+            "password":"",
+            "connect":{
+                "retries":5,
+                "delay":5000
+            }
+        }
+    }
+
+
+}

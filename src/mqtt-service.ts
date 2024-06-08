@@ -5,12 +5,13 @@
 import MQTT from 'async-mqtt';
 
 import { CamEvent } from './camera';
-import { config } from './config';
+import { config } from 'node-config-ts';
 import { logger } from './logger';
 
 export default class MQTTService {
     public static async getMQTT(): Promise<MQTTService> {
-        const client = await MQTT.connectAsync(config.MQTT_BROKER);
+        const options = { username: config.mqtt.username, password: config.mqtt.password };
+        const client = await MQTT.connectAsync(config.mqtt.broker_host, options);
         return new MQTTService(client);
     }
 
@@ -18,11 +19,11 @@ export default class MQTTService {
 
     private constructor(client: MQTT.AsyncMqttClient) {
         this._client = client;
-        this.ping();
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
     public async processEvent({
+        name,
         eventTime,
         eventTopic,
         eventProperty,
@@ -40,13 +41,22 @@ export default class MQTTService {
             dataValue,
         };
 
-        const topic = `${config.MQTT_TOPIC_ROOT}/${eventTopic}`;
-        logger.info(topic);
+        const topic = `${config.mqtt.topic_root}/${name}/${eventTopic}`;
+        logger.info(`Publishing on ${topic}`);
         await this._client.publish(topic, JSON.stringify(message));
     }
 
-    public async ping(): Promise<void> {
-        const topic = config.MQTT_TOPIC_ROOT;
-        await this._client.publish(topic, JSON.stringify('ping'));
+    public async ping(version: number): Promise<void> {
+        const topic = config.mqtt.topic_root;
+
+        const data = { name: 'onvif-mqtt', action: 'started', version };
+        await this._client.publish(topic, JSON.stringify(data));
+    }
+
+    public async notify(text: string): Promise<void> {
+        const topic = config.mqtt.topic_root;
+
+        const data = { name: 'onvif-mqtt', action: 'notifiy', text};
+        await this._client.publish(topic, JSON.stringify(data));
     }
 }

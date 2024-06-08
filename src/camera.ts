@@ -3,7 +3,7 @@
  */
 
 import { logger } from './logger';
-import { config } from './config';
+import { config } from 'node-config-ts';
 import { Cam } from 'onvif';
 import * as util from 'util';
 
@@ -12,36 +12,45 @@ import * as util from 'util';
  */
 export default class Camera {
     private _cam: Cam;
+    private _name: string;
 
-    private constructor(cam: Cam) {
+    private constructor(cam: Cam, name: string) {
         this._cam = cam;
+        this._name = name;
     }
 
-    public static async getCam(): Promise<any> {
+    /** list the name of the configured cameras */
+    public static listCameras(): string[] {
+        return Object.keys(config.cameras);
+    }
+
+    public static async getCamera(name: string): Promise<any> {
         let cam;
-        let retries = config.CAMERA_CONNECT_RETRIES;
-        const retryDelay = config.CAMERA_RETRY_DELAY;
+
+        const camCfg = config.cameras[name];
+        let retries = camCfg.connect.retries;
+        const retryDelay = camCfg.connect.delay;
         while (!cam) {
             try {
-                logger.info(`Creating new Cam - retry left:${retries}`);
+                logger.info(`[${name}] Creating new Cam - retry left:${retries}`);
                 cam = await new Promise((resolve, reject) => {
                     const cam = new Cam(
                         {
-                            hostname: config.CAMERA_HOSTNAME,
-                            username: config.CAMERA_USER,
-                            password: config.CAMERA_PASSWORD,
-                            port: config.CAMERA_PORT,
+                            hostname: camCfg.hostname,
+                            username: camCfg.username,
+                            password: camCfg.password,
+                            port: camCfg.onvif_port,
                             timeout: 10000,
                             autoconnect: true,
                             preserveAddress: true, // Enables NAT support and re-writes for PullPointSubscription URL
                         },
                         (err: any) => {
                             if (err) {
-                                logger.error('Callback error');
+                                logger.error(`[${name}] Callback error` + err);
                                 reject(err);
                             }
 
-                            resolve(new Camera(cam));
+                            resolve(new Camera(cam, name));
                         },
                     );
                 });
@@ -101,14 +110,14 @@ export default class Camera {
         return this._cam.on('event', async (camMessage: any, xml: any) => {
             const camEvent = await this.processCamMessage({ camMessage, xml });
             if (camEvent) await handler(camEvent);
-            logger.info('Event handled');
+            logger.debug(`[${this._name}] Event handled`);
         });
     }
 
     private async processCamMessage({ camMessage, xml }: { camMessage: any; xml: any }): Promise<CamEvent | undefined> {
         try {
-            logger.info(`CamMessage:::${util.inspect(camMessage, true, 6, true)}`);
-            logger.info(`CamMessage:::${util.inspect(xml, true, 6, true)}`);
+            logger.debug(`CamMessage:::${util.inspect(camMessage, true, 6, true)}`);
+            logger.debug(`CamMessage:::${util.inspect(xml, true, 6, true)}`);
             // Extract Event Details
             // Events have a Topic
             // Events have (optionally) a Source, a Key and Data fields
@@ -167,6 +176,7 @@ export default class Camera {
                         const dataName = camMessage.message.message.data.simpleItem[x].$.Name;
                         const dataValue = camMessage.message.message.data.simpleItem[x].$.Value;
                         return {
+                            name: this._name,
                             eventTime,
                             eventTopic,
                             eventProperty,
@@ -180,6 +190,7 @@ export default class Camera {
                     const dataName = camMessage.message.message.data.simpleItem.$.Name;
                     const dataValue = camMessage.message.message.data.simpleItem.$.Value;
                     return {
+                        name: this._name,
                         eventTime,
                         eventTopic,
                         eventProperty,
@@ -193,12 +204,30 @@ export default class Camera {
                 logger.warn('WARNING: Data contain an elementItem');
                 const dataName = 'elementItem';
                 const dataValue = JSON.stringify(camMessage.message.message.data.elementItem);
-                return { eventTime, eventTopic, eventProperty, sourceName, sourceValue, dataName, dataValue };
+                return {
+                    name: this._name,
+                    eventTime,
+                    eventTopic,
+                    eventProperty,
+                    sourceName,
+                    sourceValue,
+                    dataName,
+                    dataValue,
+                };
             } else {
                 logger.warn('WARNING: Data does not contain a simpleItem or elementItem');
                 const dataName = null;
                 const dataValue = null;
-                return { eventTime, eventTopic, eventProperty, sourceName, sourceValue, dataName, dataValue };
+                return {
+                    name: this._name,
+                    eventTime,
+                    eventTopic,
+                    eventProperty,
+                    sourceName,
+                    sourceValue,
+                    dataName,
+                    dataValue,
+                };
             }
         } catch (err: any) {
             logger.error(err);
@@ -228,6 +257,7 @@ export default class Camera {
 }
 
 export interface CamEvent {
+    name: string;
     eventTime: { toJSON: () => any };
     eventTopic: any;
     eventProperty: any;

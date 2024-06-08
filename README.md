@@ -10,7 +10,7 @@ Unable to get my camera's object detection to trigger recording, I looked into t
 
 Once I knew there were events, _obviously_ the next thing was to bridge these to MQTT/Node-Red _etc._ 
 
-**Note, this is running on my own systems and doing what it needs to. There are a few rough edges - so treat this as  BETA rather than a PRODUCT**
+**Note, this is running on my own systems and doing what it needs to. There are a few rough edges - so PRs are most welcome**
 
 ## Credits
 
@@ -21,7 +21,7 @@ This would have been impossible with the [onvif repo](https://github.com/agsh/on
 1. Need a camera that supports the ONVIF protocol
     - all the heavy lifting for the camera is done by the ONVIF module
 2. MQTT server setup accessible
-3. Server to run this bridge on
+3. Server to run this bridge on - preferably as a Docker container. Portainer is recommended.
 
 ### Camera
 
@@ -31,35 +31,52 @@ For this you need the IP address and username/password. These are passed to the 
 
 Hostname/port along with any credentials you need.
 
-## Running - CLI based
+## Running - Docker
 
-Set all the properties needed as environment variables; easy way to do this is to create a `.env` file like this.
+Create a `production.json` file with this structure, adding or removing cameras as you wish. For example my (redacted) configuration is 
 
-```
-CAMERA_HOSTNAME=192.168.1.183
-CAMERA_USER=admin
-CAMERA_PASSWORD=notgoingtotellyou
-CAMERA_PORT=80
-MQTT_BROKER=tcp://192.168.1.150:1885
-# CAMERA_CONNECT_RETRIES=5   
-# CANERA_RETRY_DELAY=1000
-```
-
-The last two are the retry loop controls; the default values are to retry a further 5 times after the initiala attempt. Waiting 1000ms between attempts. 
-
-Set the environment with this command; it will ignore the lines starting '#'
-```
-export $(grep -v '^#'  .env | xargs)
-```
-
-Install the onvif-mqtt, probably best to install globally.
 
 ```
-npm install -g @ampretia/onvif-mqtt
-onvif-mqtt
+{
+  "mqtt": {
+    "broker_host": "tcp://192.x.x.x:1885",
+    "topic_root": "camera",
+    "username": "cam",
+    "password": "xxxxr"
+  },
+  "cameras": {
+    "door": {
+      "hostname": "192.xx.x.x",
+      "onvif_port": "8000",
+      "username": "xxx",
+      "password": "xxx",
+      "connect": {
+        "retries": 5,
+        "delay": 5000
+      }
+    },
+    "garage": {
+      "hostname": "192.x.x.x",
+      "onvif_port": "x",
+      "username": "xxxx",
+      "password": "xxxx",
+      "connect": {
+        "retries": 5,
+        "delay": 5000
+      }
+    }
+  }
+}
+
 ```
 
-This will run in the foreground, and produce output like this
+Run the docker image, mounting the volume with the json file above in
+
+```
+docker run -it -v /directory/with/the/productio/json/file/:/config/env onvif    
+```
+
+This will run in the foreground, and produce output like this (with some data removed!)
 
 ```
 
@@ -70,20 +87,42 @@ This will run in the foreground, and produce output like this
 \____/_/ /_/|___/_/_/             /_/ /_/ /_/\__, /\__/\__/
                                                /_/
 
-[1657454096574] INFO (7 on 27d05aaea9f1): onvif-mqtt  v0.0.12
-[1657454096643] INFO (7 on 27d05aaea9f1): Connect to MQTT
-[1657454096644] INFO (7 on 27d05aaea9f1): Creating new Cam - retry left:5
-[1657454096750] INFO (7 on 27d05aaea9f1): Connected to Camera
-[1657454096780] INFO (7 on 27d05aaea9f1):
+[16:48:40.794] INFO (7): onvif-mqtt  v0.0.12
+[16:48:40.838] INFO (7): Connected to MQTT
+[16:48:40.838] INFO (7): [door] Attempting to connect
+[16:48:40.838] INFO (7): [door] Creating new Cam - retry left:5
+[16:48:42.383] INFO (7): [door] Connected
+[16:48:42.508] INFO (7):
+    manufacturer: "Manufacturer"
+    model: "Reolink Video Doorbell WiFi"
+    firmwareVersion: "v3.0."
+    serialNumber: 190
+    hardwareId: "C"
+[16:48:42.538] INFO (7): [door] Camera Time is Sat Jun 08 2024 16:48:42 GMT+0000 (Coordinated Universal Time)
+[16:48:42.591] INFO (7): [door] Capabilities::
+[16:48:42.591] INFO (7): {"device":{........}}}
+[16:48:42.591] INFO (7): [door] Event handler added
+[16:48:42.591] INFO (7): [garage] Attempting to connect
+[16:48:42.591] INFO (7): [garage] Creating new Cam - retry left:5
+[16:48:42.725] INFO (7): [garage] Connected
+[16:48:42.737] INFO (7): Publishing on camera/door/RuleEngine/CellMotionDetector/Motion
+[16:48:42.738] INFO (7): Publishing on camera/door/RuleEngine/MyRuleDetector/FaceDetect
+[16:48:42.738] INFO (7): Publishing on camera/door/RuleEngine/MyRuleDetector/PeopleDetect
+[16:48:42.738] INFO (7): Publishing on camera/door/RuleEngine/MyRuleDetector/VehicleDetect
+[16:48:42.738] INFO (7): Publishing on camera/door/RuleEngine/MyRuleDetector/DogCatDetect
+[16:48:42.738] INFO (7): Publishing on camera/door/VideoSource/MotionAlarm
+[16:48:42.740] INFO (7):
     manufacturer: "A_ONVIF_CAMERA"
-    model: "YMF50B_NM223N_AF"
-    firmwareVersion: "V3.0.6.3 build 2021-11-17 18:10:12 \n"
-    serialNumber: "EF00000000B83D56"
-    hardwareId: "1419d68a-1dd2-11b2-a105-F00000B83D56"
-[1657454096803] INFO (7 on 27d05aaea9f1): Camera Time is Sun Jan 07 2018 12:54:30 GMT+0000 (Coordinated Universal Time)
-[1657454096835] INFO (7 on 27d05aaea9f1): {"analytics":{"XAddr":"http://192.168.1.183:80/onvif/analytics","ruleSupport":true,"analyticsModuleSupport":true},"device":{"XAddr":"http://192.168.1.183:80/onvif/device","network":{"IPFilter":false,"zeroConfiguration":false,"IPVersion6":false,"dynDNS":false,"extension":{"dot11Configuration":false}},"system":{"discoveryResolve":false,"discoveryBye":false,"remoteDiscovery":false,"systemBackup":false,"systemLogging":true,"firmwareUpgrade":true,"supportedVersions":{"major":17,"minor":6},"extension":{"httpFirmwareUpgrade":true,"httpSystemBackup":false,"httpSystemLogging":true,"httpSupportInformation":true}},"IO":{"inputConnectors":1,"relayOutputs":1},"security":{"TLS1.1":false,"TLS1.2":false,"onboardKeyGeneration":false,"accessPolicyConfig":false,"X.509Token":false,"SAMLToken":false,"kerberosToken":false,"RELToken":false}},"events":{"XAddr":"http://192.168.1.183:80/onvif/events","WSSubscriptionPolicySupport":true,"WSPullPointSupport":true,"WSPausableSubscriptionManagerInterfaceSupport":true},"imaging":{"XAddr":"http://192.168.1.183:80/onvif/imaging"},"media":{"XAddr":"http://192.168.1.183:80/onvif/media","streamingCapabilities":{"RTPMulticast":true,"RTP_TCP":true,"RTP_RTSP_TCP":true}},"PTZ":{"XAddr":"http://192.168.1.183:80/onvif/ptz"},"extension":{"hikCapabilities":{"XAddr":"http://192.168.1.183:80/onvif/hik_ext","IOInputSupport":true},"deviceIO":{"XAddr":"http://192.168.1.183:80/onvif/deviceIO","videoSources":1,"videoOutputs":0,"audioSources":1,"audioOutputs":1,"relayOutputs":1},"extensions":{"telexCapabilities":{"XAddr":"http://192.168.1.183:80/onvif/telecom_service","timeOSDSupport":true,"titleOSDSupport":true,"PTZ3DZoomSupport":true,"PTZAuxSwitchSupport":true,"motionDetectorSupport":true,"tamperDetectorSupport":true}},"hbCapabilities":{"XAddr":"http://192.168.1.183:80/onvif/hbgk_ext","H265Support":true,"privacyMaskSupport":true,"cameraNum":1,"maxMaskAreaNum":4}}}
-[1657454096835] INFO (7 on 27d05aaea9f1): Event handler added
-[1657454096835] INFO (7 on 27d05aaea9f1): System configured and running
+    model: "YMF"
+    firmwareVersion: "V3."
+    serialNumber: "EF00"
+    hardwareId: "83D56"
+[16:48:42.752] INFO (7): [garage] Camera Time is Sat Jun 08 2024 17:48:40 GMT+0000 (Coordinated Universal Time)
+[16:48:42.773] INFO (7): [garage] Capabilities::
+[16:48:42.773] INFO (7): {"analytics":{........}}}
+[16:48:42.773] INFO (7): [garage] Event handler added
+[16:48:42.773] INFO (7): System configured and running
+[16:48:42.808] INFO (7): Publishing on camera/door/RuleEngine/MyRuleDetector/Visitor
 ```
 
 

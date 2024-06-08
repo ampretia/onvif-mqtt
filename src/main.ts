@@ -35,31 +35,48 @@ const main = async () => {
     logger.info(`onvif-mqtt  v${version}`);
 
     mqtt = await MQTTService.getMQTT();
+    await mqtt.ping(version);
+    logger.info(`Connected to MQTT`);
 
-    logger.info(`Connect to MQTT`);
-    const cam = await Camera.getCam();
+    const cameraNames = Camera.listCameras();
+    for (const name of cameraNames) {
+        let cam;
+        try {
+            logger.info(`[${name}] Attempting to connect`);
+            cam = await Camera.getCamera(name);
+        } catch (e: unknown) {
+            logger.error(e);
+            logger.info('moving on to next camera');
+            continue;
+        }
 
-    logger.info(`Connected to Camera`);
-    const info = await cam.getDeviceInformation();
-    logger.info(info.info);
+        logger.info(`[${name}] Connected`);
+        const info = await cam.getDeviceInformation();
+        logger.info(info.info);
 
-    const cameraDataTime = await cam.getSystemDateAndTime();
-    logger.info(`Camera Time is ${cameraDataTime.info}`);
+        const cameraDataTime = await cam.getSystemDateAndTime();
+        logger.info(`[${name}] Camera Time is ${cameraDataTime.info}`);
 
-    const cameraCapabilities = await cam.getCapabilities();
-    logger.info(`${JSON.stringify(cameraCapabilities.info)}`);
+        // to do mark difference from current time
 
-    cam.setEventHandler(async (camEvent: CamEvent) => {
-        await mqtt.processEvent(camEvent);
-    });
-    logger.info(`Event handler added`);
+        const cameraCapabilities = await cam.getCapabilities();
+        logger.info(`[${name}] Capabilities::`);
+        logger.info(`${JSON.stringify(cameraCapabilities.info)}`);
+
+        cam.setEventHandler(async (camEvent: CamEvent) => {
+            await mqtt.processEvent(camEvent);
+        });
+        
+        logger.info(`[${name}] Event handler added`);
+        await mqtt.notify(`[${name}] Event handler added`)
+    }
 };
 
 main()
     .then(() => {
         logger.info('System configured and running');
     })
-    .catch((e: any) => {
+    .catch((e: unknown) => {
         logger.error(e);
-        logger.error(e.stack);
+        logger.error((e as Error).stack);
     });
