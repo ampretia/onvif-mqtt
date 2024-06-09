@@ -12,11 +12,6 @@ RUN npm ci && npm run build && npm shrinkwrap
 
 FROM node:20 AS production
 
-# Setup tini to work better handle signals
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
-
 
 WORKDIR /usr/src/app
 COPY --chown=node:node --from=builder /usr/src/app/lib ./lib
@@ -31,5 +26,5 @@ USER node
 ENV NODE_ENV=production
 ENV NODE_CONFIG_TS_DIR=/config
 WORKDIR /usr/src/app
-ENTRYPOINT [ "/tini", "--", "node","lib/main.js" ]
+ENTRYPOINT [ "node","lib/main.js" ]
 
