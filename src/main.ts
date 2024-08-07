@@ -29,11 +29,13 @@ console.log(
 );
 
 let mqtt: MQTTService;
+let allCameras: { [camName: string]: Camera };
 
 /** Main function */
 const main = async () => {
     logger.info(`onvif-mqtt  v${version}`);
 
+    allCameras = {};
     mqtt = await MQTTService.getMQTT();
     await mqtt.ping(version);
     logger.info(`Connected to MQTT`);
@@ -66,9 +68,16 @@ const main = async () => {
         cam.setEventHandler(async (camEvent: CamEvent) => {
             await mqtt.processEvent(camEvent);
         });
-        
+
+        cam.setErrorEventHandler((event: any) => {
+            logger.error(event);
+        });
+
+        cam.enablePing();
+
         logger.info(`[${name}] Event handler added`);
-        await mqtt.notify(`[${name}] Event handler added`)
+        await mqtt.notify(`[${name}] Event handler added`);
+        allCameras[name] = cam;
     }
 };
 

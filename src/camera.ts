@@ -114,6 +114,18 @@ export default class Camera {
         });
     }
 
+    public setErrorEventHandler(handler: any): any {
+        this._cam.on('eventsError', handler);
+        this._cam.on('error', handler);
+    }
+
+    public enablePing(): void {
+        setInterval(async () => {
+            const cameraDataTime = await this.getSystemDateAndTime();
+            logger.info(`[${this._name}] Camera Time is ${cameraDataTime.info}`);
+        }, 3600 * 1000);
+    }
+
     private async processCamMessage({ camMessage, xml }: { camMessage: any; xml: any }): Promise<CamEvent | undefined> {
         try {
             logger.debug(`CamMessage:::${util.inspect(camMessage, true, 6, true)}`);
