@@ -56,7 +56,7 @@ export default class MQTTService {
     public async notify(text: string): Promise<void> {
         const topic = config.mqtt.topic_root;
 
-        const data = { name: 'onvif-mqtt', action: 'notifiy', text};
+        const data = { name: 'onvif-mqtt', action: 'notifiy', text };
         await this._client.publish(topic, JSON.stringify(data));
     }
 }

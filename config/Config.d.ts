@@ -6,9 +6,10 @@ declare module "node-config-ts" {
     cameras: Cameras
   }
   interface Cameras {
-    camera_a: Cameraa
+    door: Door
+    garage: Door
   }
-  interface Cameraa {
+  interface Door {
     hostname: string
     onvif_port: string
     username: string
