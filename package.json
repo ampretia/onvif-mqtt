@@ -1,7 +1,13 @@
 {
   "name": "@ampretia/onvif-mqtt",
   "version": "1.2.0",
-  "description": "",
+  "description": "Bridges ONVIF events to MQTT topics",
+  "keywords": [
+    "onvif",
+    "mqtt",
+    "camera",
+    "events"
+  ],
   "files": [
     "lib/**/*"
   ],
@@ -10,8 +16,8 @@
   "scripts": {
     "clean": "rimraf lib",
     "format": "prettier --write \"{src,test}/**/*.ts\"",
-    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix",
-    "build": "npm run format && npm run clean && npm run lint && echo Using TypeScript && tsc --version && tsc --pretty && npm link",
+    "lint": "eslint 'src/**/*.{js,ts,tsx}' --quiet",
+    "build": "npm run clean && tsc --pretty",
     "release": "standard-version",
     "test": "jest --passWithNoTests",
     "postinstall": "node-config-ts"
@@ -20,12 +26,12 @@
     "type": "git",
     "url": "https://github.com/ampretia/onvif-mqtt"
   },
-  "keywords": [],
   "author": "",
-  "license": "Apache 2.0",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.2",
+    "@types/source-map-support": "^0.5.10",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^5.30.5",
     "@typescript-eslint/parser": "^5.30.5",
@@ -42,18 +48,15 @@
     "rimraf": "5.0.7"
   },
   "dependencies": {
-    "@types/pino": "^7.0.5",
-    "@types/source-map-support": "^0.5.10",
     "async-mqtt": "^2.6.3",
     "chalk": "^4.1.2",
     "node-config-ts": "^3.3.1",
     "onvif": "0.7.4",
     "pino": "9.3.2",
     "pino-pretty": "11.2.2",
-    "source-map-support": "^0.5.21",
-    "yargs": "17.7.2"
+    "source-map-support": "^0.5.21"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "^24.0.0"
   }
 }

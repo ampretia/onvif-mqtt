@@ -4,7 +4,7 @@
 
 ARG VARIANT="slim"
 
-FROM node:20-${VARIANT} AS builder
+FROM node:24-${VARIANT} AS builder
 
 WORKDIR /usr/src/app
 
@@ -13,7 +13,7 @@ COPY --chown=node:node . /usr/src/app
 RUN npm ci && npm run build && npm shrinkwrap
 
 
-FROM node:20-${VARIANT} AS production
+FROM node:24-${VARIANT} AS production
 
 
 WORKDIR /usr/src/app
