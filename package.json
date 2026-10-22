@@ -19,8 +19,7 @@
     "lint": "eslint 'src/**/*.{js,ts,tsx}' --quiet",
     "build": "npm run clean && tsc --pretty",
     "release": "standard-version",
-    "test": "jest --passWithNoTests",
-    "postinstall": "node-config-ts"
+    "test": "jest --passWithNoTests"
   },
   "repository": {
     "type": "git",
@@ -29,8 +28,10 @@
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.2",
+    "@swc/core": "^1.16.18",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.19.2",
     "@types/source-map-support": "^0.5.10",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^5.30.5",
@@ -40,21 +41,19 @@
     "eslint-plugin-prettier": "^4.2.1",
     "jest": "^28.1.2",
     "prettier": "^2.7.1",
+    "rimraf": "5.0.7",
     "standard-version": "^9.5.0",
-    "ts-jest": "^28.0.5",
-    "ts-node": "^10.8.2",
-    "typescript": "^4.3.5",
-    
-    "rimraf": "5.0.7"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
-    "async-mqtt": "^2.6.3",
-    "chalk": "^4.1.2",
-    "node-config-ts": "^3.3.1",
+    "chalk": "^6.0.1",
+    "cosmiconfig": "^10.0.1",
+    "mqtt": "^5.16.1",
     "onvif": "0.7.4",
-    "pino": "9.3.2",
-    "pino-pretty": "11.2.2",
-    "source-map-support": "^0.5.21"
+    "pino": "^10.4.0",
+    "pino-pretty": "^13.2.0",
+    "source-map-support": "^0.5.21",
+    "zod": "^4.6.7"
   },
   "engines": {
     "node": "^24.0.0"

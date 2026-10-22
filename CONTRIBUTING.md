@@ -6,17 +6,9 @@ To build:
 ```
 npm install
 npm run build
-export NODE_CONFIG_TS_DIR=$(pwd)
-export NODE_ENv=development
 ```
 
-Create a directory and a default `development.json` file
-```
-mkdir -p $(pwd)/env
-cp config/default.json env/development.json
-```
-
-.. and update the `development.json` before running
+Update `.onvif-mqttrc.json` before running.
 
 ```
 node lib/main.js

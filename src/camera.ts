@@ -3,7 +3,7 @@
  */
 
 import { logger } from './logger';
-import { config } from 'node-config-ts';
+import { getConfig } from './config';
 import { Cam } from 'onvif';
 import * as util from 'util';
 
@@ -21,13 +21,13 @@ export default class Camera {
 
     /** list the name of the configured cameras */
     public static listCameras(): string[] {
-        return Object.keys(config.cameras);
+        return Object.keys(getConfig().cameras);
     }
 
     public static async getCamera(name: string): Promise<any> {
         let cam;
 
-        const camCfg = config.cameras[name];
+        const camCfg = getConfig().cameras[name];
         let retries = camCfg.connect.retries;
         const retryDelay = camCfg.connect.delay;
         while (!cam) {

@@ -10,7 +10,7 @@ Align `package.json`, the build workflow, and the Docker image with the project'
 
 2. [x] Set Node.js 24 as the supported runtime in `engines`, CI, and both Docker stages. Tests and TypeScript checking passed on Node 24; Docker image validation is unavailable here because Docker is not installed.
 3. [x] Make build and validation scripts predictable. `build` now cleans and compiles only; `lint` is an explicit, non-mutating check scoped to `src`, and the build no longer formats sources or runs `npm link`.
-4. Deferred at the user's request: leave `node-config-ts` integration and the existing `postinstall` hook unchanged until the config library work is understood.
+4. [x] Migrate configuration loading to Cosmiconfig's standard JSON file search. Keep `@@NAME` environment substitutions and validation, and remove layered files and CLI overrides. Removed the generated config types and `postinstall` hook.
 5. [x] Review dependencies: removed deprecated `@types/pino` and unused `yargs`; moved `@types/source-map-support` to `devDependencies`. Kept `@types/ws` in `devDependencies` because MQTT's declarations import it. TypeScript passes, and `ts-node` remains for Jest's TypeScript config support.
 6. [x] Complete package metadata with SPDX license `Apache-2.0`, a description, and relevant keywords.
 7. [x] Update `package-lock.json` for manifest changes.

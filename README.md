@@ -33,7 +33,7 @@ Hostname/port along with any credentials you need.
 
 ## Running - Docker
 
-Create a `production.json` file with this structure, adding or removing cameras as you wish. For example my (redacted) configuration is 
+Create a `.onvif-mqttrc.json` file with this structure, adding or removing cameras as you wish. For example my (redacted) configuration is 
 
 
 ```
@@ -42,14 +42,14 @@ Create a `production.json` file with this structure, adding or removing cameras 
     "broker_host": "tcp://192.x.x.x:1885",
     "topic_root": "camera",
     "username": "cam",
-    "password": "xxxxr"
+    "password": "@@MQTT_PASSWORD"
   },
   "cameras": {
     "door": {
       "hostname": "192.xx.x.x",
       "onvif_port": "8000",
       "username": "xxx",
-      "password": "xxx",
+      "password": "@@CAMERA_DOOR_PASSWORD",
       "connect": {
         "retries": 5,
         "delay": 5000
@@ -59,7 +59,7 @@ Create a `production.json` file with this structure, adding or removing cameras 
       "hostname": "192.x.x.x",
       "onvif_port": "x",
       "username": "xxxx",
-      "password": "xxxx",
+      "password": "@@CAMERA_GARAGE_PASSWORD",
       "connect": {
         "retries": 5,
         "delay": 5000
@@ -73,8 +73,10 @@ Create a `production.json` file with this structure, adding or removing cameras 
 Run the docker image, mounting the volume with the json file above in
 
 ```
-docker run -it -v /directory/with/the/productio/json/file/:/config/env onvif    
+docker run -it --env-file .env -v /directory/with/the/json/file/:/config onvif
 ```
+
+Cosmiconfig searches for `.onvif-mqttrc.json` from the working directory upward. Set `MQTT_PASSWORD`, `CAMERA_DOOR_PASSWORD`, and `CAMERA_GARAGE_PASSWORD` in the process environment; for Docker, provide them using `--env-file .env`. Keep `.env` out of version control.
 
 This will run in the foreground, and produce output like this (with some data removed!)
 

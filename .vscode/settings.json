@@ -1,0 +1,63 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "nvm": true,
+        "./node_modules/.bin/tsc": true,
+        "test": true,
+        "npm pack": true,
+        "/^source ~/\\.nvm/nvm\\.sh && nvm use --lts && npm test && \\./node_modules/\\.bin/tsc --pretty --noEmit$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^docker --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^source ~/\\.nvm/nvm\\.sh && nvm use --lts && npm run build$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "npm install": true,
+        "/^source ~/\\.nvm/nvm\\.sh && nvm use --lts && npm install --package-lock-only --ignore-scripts && git diff --check$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^source ~/\\.nvm/nvm\\.sh && nvm use --lts && npm install --package-lock-only --ignore-scripts && \\./node_modules/\\.bin/tsc --pretty --noEmit$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^source ~/\\.nvm/nvm\\.sh && nvm use --lts && npm ci$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "command": true,
+        "printf": true,
+        "/^node --version && npm --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"require\\('\\./lib'\\); console\\.log\\('library import ok'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git diff --stat -- package\\.json package-lock\\.json && git diff -- package\\.json \\| sed -n '1,90p' && node -p \"require\\('\\./package-lock\\.json'\\)\\.packages\\['node_modules/@types/jest'\\]\\.version\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npx tsc --noEmit --pretty$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "npx tsc": true,
+        "/^npx tsc --noEmit --pretty && node -e \"const pino = require\\('pino'\\); const logger = pino\\(\\{ level: 'silent' \\}\\); logger\\.info\\('pino smoke OK'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "npx jest": true,
+        "/^npm ls --depth=0 chalk dotenv pino pino-pretty typescript @types/node @types/jest && node -e \"const p=require\\('\\./package\\.json'\\); for \\(const n of \\['chalk','dotenv','pino','pino-pretty'\\]\\) console\\.log\\(n\\+': '\\+p\\.dependencies\\[n\\]\\); for \\(const n of \\['typescript','@types/node','@types/jest'\\]\\) console\\.log\\(n\\+': '\\+p\\.devDependencies\\[n\\]\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "npm uninstall": true,
+        "git add": true
+    }
+}

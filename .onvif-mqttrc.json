@@ -1,0 +1,30 @@
+{
+  "mqtt": {
+    "broker_host": "tcp://192.168.1.1:8272",
+    "topic_root": "camera",
+    "username": "cam",
+    "password": "@@MQTT_PASSWORD"
+  },
+  "cameras": {
+    "door": {
+      "hostname": "192.168.1.2",
+      "onvif_port": "8000",
+      "username": "admin",
+      "password": "@@CAMERA_DOOR_PASSWORD",
+      "connect": {
+        "retries": 5,
+        "delay": 5000
+      }
+    },
+    "garage": {
+      "hostname": "192.168.1.183",
+      "onvif_port": "80",
+      "username": "admin",
+      "password": "@@CAMERA_GARAGE_PASSWORD",
+      "connect": {
+        "retries": 5,
+        "delay": 5000
+      }
+    }
+  }
+}
