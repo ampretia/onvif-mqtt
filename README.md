@@ -4,6 +4,13 @@ _Bridges ONVIF events to MQTT topics_
 
 [![License](https://img.shields.io/badge/License-Apache--2-blue)](#license)
 
+## What's New in 1.2.0
+
+**Configuration migration:** If upgrading, move your broker and camera settings into `.onvif-mqttrc.json`. Replace password values with environment references such as `@@MQTT_PASSWORD` and set those variables in the process environment (or provide them with Docker's `--env-file`). The application no longer reads its full configuration from `.env`.
+
+- Configuration is loaded from `.onvif-mqttrc.json`, searched for from the working directory upward.
+- Referenced environment variables are validated at startup, so missing or empty secrets are reported before connecting.
+
 ## Background
 
 Unable to get my camera's object detection to trigger recording, I looked into the ONVIF protocol. Part of this is well defined events for things such as motion detection. In my case, I knew that the camera's 'person' detection was pretty good.

@@ -3,3 +3,4 @@ _tmp
 lib/*
 .env
 env
+.onvif-mqttrc.json

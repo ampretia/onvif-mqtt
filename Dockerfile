@@ -27,5 +27,5 @@ RUN npm ci --only=production
 USER node
 ENV NODE_ENV=production
 WORKDIR /config
-ENTRYPOINT [ "node","/usr/src/app/lib/main.js" ]
+ENTRYPOINT [ "node", "--enable-source-maps", "/usr/src/app/lib/main.js" ]
 
