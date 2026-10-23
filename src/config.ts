@@ -82,7 +82,7 @@ function validateEnvironmentSecrets(value: unknown, env: NodeJS.ProcessEnv): Rec
         throw new Error('Configuration secrets validation failed');
     }
 
-    return result.data as Record<string, string>;
+    return result.data;
 }
 
 function requireObject(value: unknown, name: string): ConfigObject {

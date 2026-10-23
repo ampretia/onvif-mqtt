@@ -22,7 +22,6 @@ export default class MQTTService {
         this._client = client;
     }
 
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
     public async processEvent({
         name,
         eventTime,
@@ -34,7 +33,7 @@ export default class MQTTService {
         dataValue,
     }: CamEvent): Promise<void> {
         const message = {
-            eventTime: eventTime.toJSON(),
+            eventTime,
             eventProperty,
             sourceName,
             sourceValue,
@@ -47,7 +46,7 @@ export default class MQTTService {
         await this._client.publishAsync(topic, JSON.stringify(message));
     }
 
-    public async ping(version: number): Promise<void> {
+    public async ping(version: string | number): Promise<void> {
         const topic = getConfig().mqtt.topic_root;
 
         const data = { name: 'onvif-mqtt', action: 'started', version };
@@ -58,6 +57,13 @@ export default class MQTTService {
         const topic = getConfig().mqtt.topic_root;
 
         const data = { name: 'onvif-mqtt', action: 'notifiy', text };
+        await this._client.publishAsync(topic, JSON.stringify(data));
+    }
+
+    public async error(text: string): Promise<void> {
+        const topic = getConfig().mqtt.topic_root;
+
+        const data = { name: 'onvif-mqtt', action: 'error', text };
         await this._client.publishAsync(topic, JSON.stringify(data));
     }
 

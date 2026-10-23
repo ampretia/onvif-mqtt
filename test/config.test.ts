@@ -65,6 +65,12 @@ describe('loadConfig', () => {
     });
 
     it('does not require runtime config just to import the library entry point', () => {
-        expect(() => jest.isolateModules(() => require('../src/index'))).not.toThrow();
+        const importEntryPoint = () => {
+            jest.isolateModules(() => {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                require('../src/index');
+            });
+        };
+        expect(importEntryPoint).not.toThrow();
     });
 });
