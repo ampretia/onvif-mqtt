@@ -20,7 +20,7 @@ describe('MQTTService', () => {
             password: 'mqtt-password',
         },
         cameras: {},
-    } as ReturnType<typeof getConfig>;
+    };
 
     const client = {
         publishAsync: jest.fn().mockResolvedValue(undefined),

@@ -58,6 +58,7 @@
             "matchCommandLine": true
         },
         "npm uninstall": true,
-        "git add": true
+        "git add": true,
+        "git tag": true
     }
 }
