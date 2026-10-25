@@ -41,7 +41,13 @@ export default class MQTTService {
             dataValue,
         };
 
-        const topic = `${getConfig().mqtt.topic_root}/${name}/${eventTopic}`;
+        const safeEventTopic = eventTopic
+            .split('/')
+            .filter((segment) => segment.length > 0)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/');
+        if (safeEventTopic.length === 0) return;
+        const topic = `${getConfig().mqtt.topic_root}/${name}/${safeEventTopic}`;
         logger.info(`Publishing on ${topic}`);
         await this._client.publishAsync(topic, JSON.stringify(message));
     }

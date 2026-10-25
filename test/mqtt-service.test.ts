@@ -78,4 +78,41 @@ describe('MQTTService', () => {
         );
         expect(client.endAsync).toHaveBeenCalledTimes(1);
     });
+
+    it('sanitizes event topic segments while preserving the topic hierarchy', async () => {
+        const service = await MQTTService.getMQTT();
+
+        await service.processEvent({
+            name: 'front-door',
+            eventTime: { toJSON: () => '2026-10-21T12:00:00.000Z' },
+            eventTopic: 'Rule//Motion+/People#',
+            eventProperty: 'Changed',
+            sourceName: 'Source',
+            sourceValue: 'front-door',
+            dataName: 'State',
+            dataValue: 'true',
+        });
+
+        expect(client.publishAsync).toHaveBeenCalledWith(
+            'camera/front-door/Rule/Motion%2B/People%23',
+            expect.any(String),
+        );
+    });
+
+    it('skips events without any non-empty topic segments', async () => {
+        const service = await MQTTService.getMQTT();
+
+        await service.processEvent({
+            name: 'front-door',
+            eventTime: { toJSON: () => '2026-10-21T12:00:00.000Z' },
+            eventTopic: '//',
+            eventProperty: 'Changed',
+            sourceName: 'Source',
+            sourceValue: 'front-door',
+            dataName: 'State',
+            dataValue: 'true',
+        });
+
+        expect(client.publishAsync).not.toHaveBeenCalled();
+    });
 });

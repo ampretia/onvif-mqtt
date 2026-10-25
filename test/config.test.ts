@@ -90,6 +90,17 @@ describe('loadConfig', () => {
         expect(config.cameras.door.onvif_port).toBe('8000');
     });
 
+    it.each(['', 'front/door', 'front+door', 'front#door'])(
+        'rejects camera name %j as an invalid MQTT topic segment',
+        (name) => {
+            writeConfig({ [name]: validCamera() });
+
+            expect(() => loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } })).toThrow(
+                'valid MQTT topic segment',
+            );
+        },
+    );
+
     it('rejects a non-numeric ONVIF port', () => {
         writeConfig({ door: { ...validCamera(), onvif_port: 'not-a-port' } });
 
