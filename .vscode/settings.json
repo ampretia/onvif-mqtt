@@ -63,6 +63,9 @@
         "git remote": true,
         "git fetch": true,
         "gh": true,
-        "git switch": true
+        "git switch": true,
+        "./node_modules/.bin/prettier": true,
+        "git commit": true,
+        "git push": true
     }
 }
