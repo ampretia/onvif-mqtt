@@ -59,6 +59,10 @@
         },
         "npm uninstall": true,
         "git add": true,
-        "git tag": true
+        "git tag": true,
+        "git remote": true,
+        "git fetch": true,
+        "gh": true,
+        "git switch": true
     }
 }
