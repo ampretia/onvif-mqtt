@@ -111,6 +111,9 @@ function validateConfig(value: unknown): AppConfig {
     }
 
     for (const [name, cameraValue] of Object.entries(cameras)) {
+        if (name.length === 0 || /[+#/]/.test(name)) {
+            throw new Error(`Configuration field "cameras.${name}" must be a valid MQTT topic segment`);
+        }
         const camera = requireObject(cameraValue, `cameras.${name}`);
         for (const key of ['hostname', 'onvif_port', 'username', 'password']) {
             requireString(camera[key], `cameras.${name}.${key}`);
