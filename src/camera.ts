@@ -184,7 +184,7 @@ export default class Camera {
 
     /** Stop event delivery so this instance can be discarded and replaced by a new connection */
     public async dispose(): Promise<void> {
-        this._cam.removeAllListeners('event');
+        this._cam.removeAllListeners();
         await new Promise<void>((resolve, reject) => {
             (this._cam as CamWithUnsubscribe).unsubscribe((error: Error | null) => {
                 if (error && error.message !== 'You should create pull-point subscription first!') {
