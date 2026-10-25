@@ -68,7 +68,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.onviffmqtt.outputs.tags }}
           labels: ${{ steps.onviffmqtt.outputs.labels }}
