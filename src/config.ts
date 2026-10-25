@@ -34,6 +34,8 @@ interface ConfigOptions {
 type ConfigObject = Record<string, unknown>;
 
 const explorer = cosmiconfigSync('onvif-mqtt');
+const nonNegativeIntegerSchema = z.number().int().nonnegative();
+const numericPortSchema = z.string().regex(/^\d+$/);
 
 function isObject(value: unknown): value is ConfigObject {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -113,10 +115,13 @@ function validateConfig(value: unknown): AppConfig {
         for (const key of ['hostname', 'onvif_port', 'username', 'password']) {
             requireString(camera[key], `cameras.${name}.${key}`);
         }
+        if (!numericPortSchema.safeParse(camera.onvif_port).success) {
+            throw new Error(`Configuration field "cameras.${name}.onvif_port" must be numeric`);
+        }
         const connect = requireObject(camera.connect, `cameras.${name}.connect`);
         for (const key of ['retries', 'delay']) {
-            if (typeof connect[key] !== 'number' || !Number.isFinite(connect[key])) {
-                throw new Error(`Configuration field "cameras.${name}.connect.${key}" must be a number`);
+            if (!nonNegativeIntegerSchema.safeParse(connect[key]).success) {
+                throw new Error(`Configuration field "cameras.${name}.connect.${key}" must be a non-negative integer`);
             }
         }
     }

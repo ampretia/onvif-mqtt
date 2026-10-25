@@ -6,8 +6,7 @@ import { loadConfig } from '../src/config';
 describe('loadConfig', () => {
     let configRoot: string;
 
-    beforeEach(() => {
-        configRoot = mkdtempSync(path.join(os.tmpdir(), 'onvif-mqtt-config-'));
+    const writeConfig = (cameras: Record<string, unknown> = {}) => {
         writeFileSync(
             path.join(configRoot, '.onvif-mqttrc.json'),
             JSON.stringify({
@@ -17,9 +16,22 @@ describe('loadConfig', () => {
                     username: 'base-user',
                     password: '@@MQTT_PASSWORD',
                 },
-                cameras: {},
+                cameras,
             }),
         );
+    };
+
+    const validCamera = () => ({
+        hostname: 'localhost',
+        onvif_port: '8000',
+        username: 'camera-user',
+        password: 'camera-password',
+        connect: { retries: 5, delay: 1000 },
+    });
+
+    beforeEach(() => {
+        configRoot = mkdtempSync(path.join(os.tmpdir(), 'onvif-mqtt-config-'));
+        writeConfig();
     });
 
     afterEach(() => {
@@ -53,6 +65,37 @@ describe('loadConfig', () => {
         } finally {
             consoleError.mockRestore();
         }
+    });
+
+    it.each([
+        ['retries', -1],
+        ['retries', 1.5],
+        ['delay', -1],
+        ['delay', 1.5],
+    ] as const)('rejects invalid camera connect.%s value %s', (key, value) => {
+        const camera = validCamera();
+        camera.connect[key] = value;
+        writeConfig({ door: camera });
+
+        expect(() => loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } })).toThrow(
+            `cameras.door.connect.${key}`,
+        );
+    });
+
+    it('accepts a numeric ONVIF port string', () => {
+        writeConfig({ door: validCamera() });
+
+        const config = loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } });
+
+        expect(config.cameras.door.onvif_port).toBe('8000');
+    });
+
+    it('rejects a non-numeric ONVIF port', () => {
+        writeConfig({ door: { ...validCamera(), onvif_port: 'not-a-port' } });
+
+        expect(() => loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } })).toThrow(
+            'cameras.door.onvif_port',
+        );
     });
 
     it('requires standard JSON syntax', () => {

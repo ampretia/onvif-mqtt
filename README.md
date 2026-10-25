@@ -64,7 +64,7 @@ Create a `.onvif-mqttrc.json` file with this structure, adding or removing camer
     },
     "garage": {
       "hostname": "192.x.x.x",
-      "onvif_port": "x",
+      "onvif_port": "8000",
       "username": "xxxx",
       "password": "@@CAMERA_GARAGE_PASSWORD",
       "connect": {
