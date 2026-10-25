@@ -145,4 +145,5 @@ main()
     })
     .catch((e: unknown) => {
         logger.error({ err: e }, 'Fatal error in main');
+        process.exit(1);
     });
