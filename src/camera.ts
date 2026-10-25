@@ -7,6 +7,8 @@ import { getConfig } from './config';
 import { Cam, CamCallback, CamOptions, DeviceInformation, SystemDateAndTime, Capabilities } from 'onvif';
 import * as util from 'util';
 
+type CamWithUnsubscribe = Cam & { unsubscribe(callback: (error: Error | null) => void): void };
+
 /** Shape of a parsed ONVIF event message as received from the onvif library */
 interface SimpleItem {
     $: { Name: string; Value: string };
@@ -181,9 +183,17 @@ export default class Camera {
     }
 
     /** Stop event delivery so this instance can be discarded and replaced by a new connection */
-    public dispose(): void {
-        // the onvif event loop stops pulling once there are no 'event' listeners
+    public async dispose(): Promise<void> {
         this._cam.removeAllListeners('event');
+        await new Promise<void>((resolve, reject) => {
+            (this._cam as CamWithUnsubscribe).unsubscribe((error: Error | null) => {
+                if (error && error.message !== 'You should create pull-point subscription first!') {
+                    reject(error);
+                    return;
+                }
+                resolve();
+            });
+        });
     }
 
     private processCamMessage({ camMessage, xml }: { camMessage: unknown; xml: unknown }): CamEvent | undefined {
