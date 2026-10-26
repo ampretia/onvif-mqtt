@@ -6,6 +6,7 @@ import { logger } from './logger';
 import { getConfig } from './config';
 import { Cam, CamCallback, CamOptions, DeviceInformation, SystemDateAndTime, Capabilities } from 'onvif';
 import * as util from 'util';
+import { isAuthenticationError, nextRetryDelay } from './retry';
 
 type CamWithUnsubscribe = Cam & { unsubscribe(callback: (error: Error | null) => void): void };
 
@@ -51,7 +52,7 @@ export default class Camera {
 
         const camCfg = getConfig().cameras[name];
         let retries = camCfg.connect.retries;
-        const retryDelay = camCfg.connect.delay;
+        let retryDelay = camCfg.connect.delay;
         while (!cam) {
             try {
                 logger.info(`[${name}] Creating new Cam - retry left:${retries}`);
@@ -81,11 +82,15 @@ export default class Camera {
                     });
                 });
             } catch (error) {
+                if (isAuthenticationError(error)) {
+                    throw error;
+                }
                 if (retries < 1) {
                     throw error;
                 }
                 retries--;
                 await this.wait(retryDelay);
+                retryDelay = nextRetryDelay(retryDelay);
             }
         }
 
@@ -113,6 +118,7 @@ export default class Camera {
     ): Promise<{ info: T | undefined; xml: string | undefined }> {
         const callSite = new Error();
         const { retries, delay } = getConfig().cameras[this._name].connect;
+        let retryDelay = delay;
         for (let attempt = 0; ; attempt++) {
             try {
                 return await new Promise((resolve, reject) => {
@@ -126,9 +132,13 @@ export default class Camera {
                 });
             } catch (e: unknown) {
                 const err = e as Error;
+                if (isAuthenticationError(err)) {
+                    throw err;
+                }
                 if (err.message === 'Network timeout' && attempt < retries) {
                     logger.warn(`[${this._name}] ${operation} timed out - retry ${attempt + 1} of ${retries}`);
-                    await Camera.wait(delay);
+                    await Camera.wait(retryDelay);
+                    retryDelay = nextRetryDelay(retryDelay);
                     continue;
                 }
                 const wrapped = new Error(`[${this._name}] ${operation} failed: ${err.message}`, { cause: err });

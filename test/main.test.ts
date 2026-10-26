@@ -93,6 +93,62 @@ describe('main startup', () => {
         expect(process.exitCode).toBe(0);
     });
 
+    it('does not reconnect after an authentication failure', async () => {
+        const service = {
+            ping: jest.fn().mockResolvedValue(undefined),
+            notify: jest.fn().mockResolvedValue(undefined),
+            error: jest.fn().mockResolvedValue(undefined),
+            close: jest.fn().mockResolvedValue(undefined),
+        };
+        const setTimeout = jest.spyOn(global, 'setTimeout');
+        const setInterval = jest.spyOn(global, 'setInterval');
+        mockGetMQTT.mockResolvedValue(service);
+        mockListCameras.mockReturnValue(['door']);
+        mockGetCamera.mockRejectedValueOnce(new Error('Digest authentication failed 401'));
+
+        jest.isolateModules(() => {
+            jest.requireActual('../src/main');
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(mockGetCamera).toHaveBeenCalledTimes(1);
+        const pingCycle = setInterval.mock.calls[0]?.[0] as (() => void) | undefined;
+        pingCycle?.();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(setTimeout).not.toHaveBeenCalled();
+        expect(service.error).toHaveBeenCalledTimes(1);
+        process.emit('SIGTERM');
+        await new Promise<void>((resolve) => setImmediate(resolve));
+    });
+
+    it('doubles reconnect delays after consecutive connection failures', async () => {
+        const service = {
+            ping: jest.fn().mockResolvedValue(undefined),
+            notify: jest.fn().mockResolvedValue(undefined),
+            error: jest.fn().mockResolvedValue(undefined),
+            close: jest.fn().mockResolvedValue(undefined),
+        };
+        const setTimeout = jest.spyOn(global, 'setTimeout');
+        mockGetMQTT.mockResolvedValue(service);
+        mockListCameras.mockReturnValue(['door']);
+        mockGetCamera.mockRejectedValue(new Error('offline'));
+
+        jest.isolateModules(() => {
+            jest.requireActual('../src/main');
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 60_000);
+        const reconnect = setTimeout.mock.calls[0]?.[0] as (() => void) | undefined;
+        reconnect?.();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(mockGetCamera).toHaveBeenCalledTimes(2);
+        expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 120_000);
+        process.emit('SIGTERM');
+        await new Promise<void>((resolve) => setImmediate(resolve));
+    });
+
     it.each([
         ['unhandledRejection', 'Unhandled promise rejection'],
         ['uncaughtException', 'Uncaught exception'],
