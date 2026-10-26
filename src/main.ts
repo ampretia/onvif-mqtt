@@ -10,6 +10,7 @@ import * as path from 'path';
 import Camera, { CamEvent } from './camera';
 
 import MQTTService from './mqtt-service';
+import { isAuthenticationError, nextRetryDelay } from './retry';
 
 const pjson = readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8');
 const version = (JSON.parse(pjson) as { version: string }).version;
@@ -31,6 +32,8 @@ const RECONNECT_DELAY_MS = 60 * 1000;
 let mqtt: MQTTService | undefined;
 const allCameras: { [camName: string]: Camera } = {};
 const reconnectTimers = new Map<string, NodeJS.Timeout>();
+const reconnectDelays = new Map<string, number>();
+const authenticationFailures = new Set<string>();
 const connecting = new Set<string>();
 const activeTasks = new Set<Promise<void>>();
 let pingInterval: NodeJS.Timeout | undefined;
@@ -87,6 +90,7 @@ const shutdown = (exitCode = 0): Promise<void> => {
     }
     for (const timer of reconnectTimers.values()) clearTimeout(timer);
     reconnectTimers.clear();
+    reconnectDelays.clear();
 
     shutdownPromise = (async () => {
         await Promise.allSettled([...activeTasks]);
@@ -120,12 +124,14 @@ process.once('uncaughtException', (error: Error) => {
 
 /** Retry connecting to a camera after a delay, unless a retry is already pending */
 const scheduleReconnect = (name: string) => {
-    if (shuttingDown || reconnectTimers.has(name)) return;
-    logger.info(`[${name}] Will attempt to reconnect in ${RECONNECT_DELAY_MS / 1000}s`);
+    if (shuttingDown || authenticationFailures.has(name) || reconnectTimers.has(name)) return;
+    const delay = reconnectDelays.get(name) ?? RECONNECT_DELAY_MS;
+    reconnectDelays.set(name, nextRetryDelay(delay));
+    logger.info(`[${name}] Will attempt to reconnect in ${delay / 1000}s`);
     const timer = setTimeout(() => {
         reconnectTimers.delete(name);
         void connectCamera(name);
-    }, RECONNECT_DELAY_MS);
+    }, delay);
     reconnectTimers.set(name, timer);
 };
 
@@ -162,6 +168,7 @@ const setupCamera = async (name: string): Promise<void> => {
         });
 
         allCameras[name] = cam;
+        reconnectDelays.delete(name);
         logger.info(`[${name}] Event handler added`);
         await service.notify(`[${name}] Event handler added`);
     } catch (e: unknown) {
@@ -171,7 +178,11 @@ const setupCamera = async (name: string): Promise<void> => {
         }
         logger.error(e);
         await reportError(`[${name}] connection failed: ${e instanceof Error ? e.message : String(e)}`);
-        scheduleReconnect(name);
+        if (isAuthenticationError(e)) {
+            authenticationFailures.add(name);
+        } else {
+            scheduleReconnect(name);
+        }
     } finally {
         connecting.delete(name);
     }
@@ -183,13 +194,8 @@ const pingAll = async () => {
         if (shuttingDown) return;
         const cam = allCameras[name];
         if (!cam) {
-            // not connected (initial connect failed or earlier ping failed) - try again now
-            const timer = reconnectTimers.get(name);
-            if (timer) {
-                clearTimeout(timer);
-                reconnectTimers.delete(name);
-            }
-            await setupCamera(name);
+            // Keep the scheduled backoff; authentication failures require intervention.
+            if (!authenticationFailures.has(name)) scheduleReconnect(name);
             continue;
         }
 
@@ -202,7 +208,11 @@ const pingAll = async () => {
             if (shuttingDown) return;
             delete allCameras[name];
             await disposeCamera(name, cam);
-            scheduleReconnect(name);
+            if (isAuthenticationError(e)) {
+                authenticationFailures.add(name);
+            } else {
+                scheduleReconnect(name);
+            }
         }
     }
 };
