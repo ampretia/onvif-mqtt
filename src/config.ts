@@ -22,6 +22,13 @@ export interface AppConfig {
         topic_root: string;
         username: string;
         password: string;
+        client_id?: string;
+        will?: {
+            topic: string;
+            payload: string;
+            qos?: 0 | 1 | 2;
+            retain?: boolean;
+        };
     };
     cameras: Record<string, CameraConfig>;
 }
@@ -108,6 +115,23 @@ function validateConfig(value: unknown): AppConfig {
 
     for (const key of ['broker_host', 'topic_root', 'username', 'password']) {
         requireString(mqtt[key], `mqtt.${key}`);
+    }
+    if (mqtt.client_id !== undefined) {
+        requireString(mqtt.client_id, 'mqtt.client_id');
+    }
+    if (mqtt.will !== undefined) {
+        const will = requireObject(mqtt.will, 'mqtt.will');
+        requireString(will.topic, 'mqtt.will.topic');
+        requireString(will.payload, 'mqtt.will.payload');
+        if (/[+#]/.test(will.topic as string)) {
+            throw new Error('Configuration field "mqtt.will.topic" must not contain MQTT wildcards');
+        }
+        if (will.qos !== undefined && (typeof will.qos !== 'number' || ![0, 1, 2].includes(will.qos))) {
+            throw new Error('Configuration field "mqtt.will.qos" must be 0, 1, or 2');
+        }
+        if (will.retain !== undefined && typeof will.retain !== 'boolean') {
+            throw new Error('Configuration field "mqtt.will.retain" must be a boolean');
+        }
     }
 
     for (const [name, cameraValue] of Object.entries(cameras)) {
