@@ -6,7 +6,7 @@ import { loadConfig } from '../src/config';
 describe('loadConfig', () => {
     let configRoot: string;
 
-    const writeConfig = (cameras: Record<string, unknown> = {}) => {
+    const writeConfig = (cameras: Record<string, unknown> = {}, mqttSettings: Record<string, unknown> = {}) => {
         writeFileSync(
             path.join(configRoot, '.onvif-mqttrc.json'),
             JSON.stringify({
@@ -15,6 +15,7 @@ describe('loadConfig', () => {
                     topic_root: 'base',
                     username: 'base-user',
                     password: '@@MQTT_PASSWORD',
+                    ...mqttSettings,
                 },
                 cameras,
             }),
@@ -51,6 +52,41 @@ describe('loadConfig', () => {
             password: 'secret',
         });
         expect(config.cameras).toEqual({});
+    });
+
+    it('accepts a configurable MQTT client ID and Last Will', () => {
+        writeConfig(
+            {},
+            {
+                client_id: 'bridge-office',
+                will: {
+                    topic: 'base/status',
+                    payload: '{"name":"onvif-mqtt","action":"offline"}',
+                    qos: 2,
+                    retain: true,
+                },
+            },
+        );
+
+        const config = loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } });
+
+        expect(config.mqtt.client_id).toBe('bridge-office');
+        expect(config.mqtt.will).toEqual({
+            topic: 'base/status',
+            payload: '{"name":"onvif-mqtt","action":"offline"}',
+            qos: 2,
+            retain: true,
+        });
+    });
+
+    it('rejects invalid Last Will topics and QoS values', () => {
+        for (const will of [
+            { topic: 'base/+', payload: 'offline' },
+            { topic: 'base/status', payload: 'offline', qos: 3 },
+        ]) {
+            writeConfig({}, { will });
+            expect(() => loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } })).toThrow('mqtt.will');
+        }
     });
 
     it('rejects missing environment variables referenced by configuration', () => {

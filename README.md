@@ -49,7 +49,14 @@ Create a `.onvif-mqttrc.json` file with this structure, adding or removing camer
     "broker_host": "tcp://192.x.x.x:1885",
     "topic_root": "camera",
     "username": "cam",
-    "password": "@@MQTT_PASSWORD"
+    "password": "@@MQTT_PASSWORD",
+    "client_id": "onvif-mqtt-office",
+    "will": {
+      "topic": "camera/status",
+      "payload": "{\"name\":\"onvif-mqtt\",\"action\":\"offline\"}",
+      "qos": 1,
+      "retain": true
+    }
   },
   "cameras": {
     "door": {
@@ -84,6 +91,8 @@ docker run -it --env-file .env -v /directory/with/the/json/file/:/config onvif
 ```
 
 Cosmiconfig searches for `.onvif-mqttrc.json` from the working directory upward. Set `MQTT_PASSWORD`, `CAMERA_DOOR_PASSWORD`, and `CAMERA_GARAGE_PASSWORD` in the process environment; for Docker, provide them using `--env-file .env`. Keep `.env` out of version control.
+
+The MQTT `client_id` and `will` settings are optional. Without a `will`, the broker publishes a retained `{"name":"onvif-mqtt","action":"offline"}` Last Will to `<topic_root>/status` with QoS 1 if the bridge disconnects unexpectedly. MQTT reconnects automatically, and pending publishes are kept in a bounded queue that drops the oldest message when full.
 
 This will run in the foreground, and produce output like this (with some data removed!)
 
