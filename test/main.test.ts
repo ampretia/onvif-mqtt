@@ -140,6 +140,8 @@ describe('main startup', () => {
 
         expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 60_000);
         const reconnect = setTimeout.mock.calls[0]?.[0] as (() => void) | undefined;
+        const reconnectTimer = setTimeout.mock.results[0]?.value as ReturnType<typeof global.setTimeout> | undefined;
+        if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnect?.();
         await new Promise<void>((resolve) => setImmediate(resolve));
 
