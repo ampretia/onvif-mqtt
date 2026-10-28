@@ -22,7 +22,7 @@
     "build": "npm run clean && npm run format && npm run lint && tsc --pretty",
     "start": "node --enable-source-maps lib/main.js",
     "release": "commit-and-tag-version",
-    "test": "jest --passWithNoTests --detectOpenHandles"
+    "test": "jest --passWithNoTests"
   },
   "repository": {
     "type": "git",
