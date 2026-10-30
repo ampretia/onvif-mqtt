@@ -1,7 +1,19 @@
 import { EventEmitter } from 'events';
 import Camera, { CamEvent } from '../src/camera';
+import { getConfig } from '../src/config';
+
+jest.mock('../src/config', () => ({ getConfig: jest.fn() }));
+
+const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
 
 describe('Camera.getCamera', () => {
+    beforeEach(() => {
+        mockGetConfig.mockReturnValue({
+            mqtt: { broker_host: 'mqtt://localhost', topic_root: 'camera' },
+            cameras: {},
+        });
+    });
+
     it('rejects with an unknown camera error when the name is not configured', async () => {
         await expect(Camera.getCamera('unknown-camera')).rejects.toThrow('Unknown camera "unknown-camera"');
     });
