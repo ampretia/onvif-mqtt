@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+node_modules
+lib
+_tmp
+.env
+env
+.onvif-mqttrc.json
+*.md
+!package.json
+Dockerfile
+.dockerignore
