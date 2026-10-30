@@ -1,4 +1,4 @@
-import { isAuthenticationError, nextRetryDelay, sleep, withRetry } from '../src/retry';
+import { isAuthenticationError, isTimeoutError, nextRetryDelay, sleep, withRetry } from '../src/retry';
 
 describe('retry policy', () => {
     it.each([
@@ -14,6 +14,21 @@ describe('retry policy', () => {
 
     it('does not classify unrelated connection errors as authentication failures', () => {
         expect(isAuthenticationError(new Error('Network timeout'))).toBe(false);
+    });
+
+    it.each([
+        ['Network timeout message', new Error('Network timeout')],
+        ['Nested network timeout cause', new Error('call failed', { cause: new Error('Network timeout') })],
+        ['ETIMEDOUT code', Object.assign(new Error('connect failed'), { code: 'ETIMEDOUT' })],
+        ['ECONNRESET message', new Error('read ECONNRESET')],
+        ['socket hang up', new Error('socket hang up')],
+    ])('recognizes %s as a timeout/network error', (_description, error) => {
+        expect(isTimeoutError(error)).toBe(true);
+    });
+
+    it('does not classify other errors as timeout errors', () => {
+        expect(isTimeoutError(new Error('Digest authentication failed 401'))).toBe(false);
+        expect(isTimeoutError(new Error('Invalid XML response'))).toBe(false);
     });
 
     it('doubles retry delays up to one hour', () => {

@@ -6,11 +6,10 @@ import { logger } from './logger';
 import { CameraConfig, getConfig } from './config';
 import { Cam, CamCallback, CamOptions, DeviceInformation, SystemDateAndTime, Capabilities } from 'onvif';
 import * as util from 'util';
-import { isAuthenticationError, withRetry } from './retry';
+import { isAuthenticationError, isTimeoutError, withRetry } from './retry';
 
 const DISPOSE_TIMEOUT_MS = 10_000;
 /** Messages produced by the onvif library that we need to recognise */
-const NETWORK_TIMEOUT_MESSAGE = 'Network timeout';
 const NO_PULL_POINT_MESSAGE = 'You should create pull-point subscription first!';
 
 type CamWithUnsubscribe = Cam & { unsubscribe(callback: (error: Error | null) => void): void };
@@ -141,7 +140,7 @@ export default class Camera {
                 {
                     retries,
                     delay,
-                    shouldRetry: (e) => e instanceof Error && e.message === NETWORK_TIMEOUT_MESSAGE,
+                    shouldRetry: (e) => isTimeoutError(e),
                     onRetry: (_e, attempt) =>
                         logger.warn(`[${this._name}] ${operation} timed out - retry ${attempt} of ${retries}`),
                 },
@@ -245,16 +244,16 @@ export default class Camera {
             if (source?.simpleItem) {
                 const sourceItems = ([] as SimpleItem[]).concat(source.simpleItem);
                 if (sourceItems.length > 1) {
-                    logger.warn('WARNING: Only processing first Event Source item');
+                    logger.debug('WARNING: Only processing first Event Source item');
                 }
                 sourceName = sourceItems[0].$.Name;
                 sourceValue = sourceItems[0].$.Value;
             } else {
-                logger.warn('WARNING: Source does not contain a simpleItem');
+                logger.debug('WARNING: Source does not contain a simpleItem');
             }
 
             if (key) {
-                logger.warn('NOTE: Event has a Key');
+                logger.debug('NOTE: Event has a Key');
             }
 
             const base = { name: this._name, eventTime, eventTopic, eventProperty, sourceName, sourceValue };
@@ -265,13 +264,13 @@ export default class Camera {
                     .map((item) => ({ ...base, dataName: item.$.Name, dataValue: item.$.Value }));
             }
             if (data?.elementItem) {
-                logger.warn('WARNING: Data contain an elementItem');
+                logger.debug('WARNING: Data contain an elementItem');
                 return [{ ...base, dataName: 'elementItem', dataValue: JSON.stringify(data.elementItem) }];
             }
-            logger.warn('WARNING: Data does not contain a simpleItem or elementItem');
+            logger.debug('WARNING: Data does not contain a simpleItem or elementItem');
             return [{ ...base, dataName: null, dataValue: null }];
         } catch (err: unknown) {
-            logger.error(err);
+            logger.error({ err }, 'Failed to parse camera event message');
             logger.info(`Event::::  ${JSON.stringify(camMessage)}`);
             return [];
         }
