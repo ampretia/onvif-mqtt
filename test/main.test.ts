@@ -155,6 +155,37 @@ describe('main startup', () => {
         await new Promise<void>((resolve) => setImmediate(resolve));
     });
 
+    it('treats notify failure as non-fatal and keeps camera connected', async () => {
+        const camera = {
+            getDeviceInformation: jest.fn().mockResolvedValue({ info: {}, xml: '' }),
+            getSystemDateAndTime: jest.fn().mockResolvedValue({ info: {}, xml: '' }),
+            getCapabilities: jest.fn().mockResolvedValue({ info: {}, xml: '' }),
+            setEventHandler: jest.fn(),
+            setErrorEventHandler: jest.fn(),
+            dispose: jest.fn().mockResolvedValue(undefined),
+        };
+        const service = {
+            ping: jest.fn().mockResolvedValue(undefined),
+            notify: jest.fn().mockRejectedValue(new Error('MQTT notify failed')),
+            error: jest.fn().mockResolvedValue(undefined),
+            close: jest.fn().mockResolvedValue(undefined),
+        };
+        mockGetMQTT.mockResolvedValue(service);
+        mockListCameras.mockReturnValue(['door']);
+        mockGetCamera.mockResolvedValue(camera);
+
+        jest.isolateModules(() => {
+            jest.requireActual('../src/main');
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(service.notify).toHaveBeenCalledTimes(1);
+        expect(logger.error).toHaveBeenCalledWith({ err: expect.any(Error) }, 'Failed to publish notification to MQTT');
+        process.emit('SIGTERM');
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(camera.dispose).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
         ['unhandledRejection', 'Unhandled promise rejection'],
         ['uncaughtException', 'Uncaught exception'],

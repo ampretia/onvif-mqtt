@@ -68,6 +68,9 @@ export default class Camera {
      */
     public static async getCamera(name: string, signal?: AbortSignal): Promise<Camera> {
         const camCfg = getConfig().cameras[name];
+        if (!camCfg) {
+            throw new Error(`Unknown camera "${name}"`);
+        }
         let retriesLeft = camCfg.connect.retries;
         return withRetry(
             () => {
