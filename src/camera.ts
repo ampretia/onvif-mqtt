@@ -48,11 +48,17 @@ export default class Camera {
     private _cam: Cam;
     private _name: string;
     private _connect: CameraConfig['connect'];
+    private _lastEventTime: number = Date.now();
+    private _eventsErrorCount = 0;
 
     private constructor(cam: Cam, name: string, connect: CameraConfig['connect']) {
         this._cam = cam;
         this._name = name;
         this._connect = connect;
+    }
+
+    public getLastEventTime(): number {
+        return this._lastEventTime;
     }
 
     /** list the name of the configured cameras */
@@ -168,6 +174,8 @@ export default class Camera {
 
     public setEventHandler(handler: (event: CamEvent) => Promise<void>): void {
         this._cam.on('event', (...args: unknown[]) => {
+            this._lastEventTime = Date.now();
+            this._eventsErrorCount = 0;
             const camMessage = args[0];
             const xml = args[1] as string | undefined;
             for (const camEvent of this.processCamMessage({ camMessage, xml })) {
@@ -182,6 +190,9 @@ export default class Camera {
         // Errors raised inside the onvif library have no frames from this project in their stack.
         // Wrap them here so the stack references our (source-mapped) code and the camera name.
         const wrap = (source: string) => (err: unknown) => {
+            if (source === 'eventsError') {
+                this._eventsErrorCount++;
+            }
             handler(
                 new Error(`[${this._name}] ${source}: ${err instanceof Error ? err.message : String(err)}`, {
                     cause: err,
@@ -192,10 +203,14 @@ export default class Camera {
         this._cam.on('error', wrap('error'));
     }
 
-    /** Check the camera is responding; throws if it is not */
+    /** Check the camera is responding and event pull-point is healthy; throws if stalled or unreachable */
     public async ping(): Promise<void> {
         const cameraDataTime = await this.getSystemDateAndTime();
         logger.info(`[${this._name}] Camera Time is ${JSON.stringify(cameraDataTime.info)}`);
+        if (this._eventsErrorCount > 0) {
+            this._eventsErrorCount = 0;
+            throw new Error(`Pull-point subscription error detected; reconnecting camera`);
+        }
     }
 
     /** Stop event delivery so this instance can be discarded and replaced by a new connection */
