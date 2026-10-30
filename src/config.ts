@@ -12,19 +12,23 @@ const nonNegativeInteger = z
     .int('must be a non-negative integer')
     .nonnegative('must be a non-negative integer');
 
+const qosSchema = z.union([z.literal(0), z.literal(1), z.literal(2)], { error: 'must be 0, 1, or 2' });
+
 const cameraSchema = z.object({
     hostname: nonEmptyString,
     onvif_port: nonEmptyString.regex(/^\d+$/, 'must be numeric'),
     username: nonEmptyString,
     password: nonEmptyString,
     connect: z.object({ retries: nonNegativeInteger, delay: nonNegativeInteger }),
+    qos: qosSchema.optional(),
+    retain: z.boolean({ error: 'must be a boolean' }).optional(),
 });
 
 const willSchema = z.object({
     topic: nonEmptyString.refine(noWildcards, 'must not contain MQTT wildcards'),
     payload: nonEmptyString,
     online_payload: nonEmptyString.optional(),
-    qos: z.union([z.literal(0), z.literal(1), z.literal(2)], { error: 'must be 0, 1, or 2' }).optional(),
+    qos: qosSchema.optional(),
     retain: z.boolean({ error: 'must be a boolean' }).optional(),
 });
 
@@ -35,6 +39,12 @@ const appConfigSchema = z.object({
         username: nonEmptyString,
         password: nonEmptyString,
         client_id: nonEmptyString.optional(),
+        qos: qosSchema.optional(),
+        retain: z.boolean({ error: 'must be a boolean' }).optional(),
+        reject_unauthorized: z.boolean({ error: 'must be a boolean' }).optional(),
+        ca_cert: nonEmptyString.optional(),
+        client_cert: nonEmptyString.optional(),
+        client_key: nonEmptyString.optional(),
         will: willSchema.optional(),
     }),
     cameras: z.record(z.string(), cameraSchema).superRefine((cameras, ctx) => {

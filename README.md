@@ -96,7 +96,11 @@ docker run -it --env-file .env -v /directory/with/the/json/file/:/config onvif
 
 Cosmiconfig searches for `.onvif-mqttrc.json` from the working directory upward. Set `MQTT_PASSWORD`, `CAMERA_DOOR_PASSWORD`, and `CAMERA_GARAGE_PASSWORD` in the process environment; for Docker, provide them using `--env-file .env`. Keep `.env` out of version control.
 
-The MQTT `client_id` and `will` settings are optional. Without a `will`, the broker publishes a retained `{"name":"onvif-mqtt","action":"offline"}` Last Will to `<topic_root>/status` with QoS 1 if the bridge disconnects unexpectedly. Without a `will`, the bridge also publishes a retained `{"name":"onvif-mqtt","action":"online"}` to that topic on every (re)connect and a retained `offline` on clean shutdown. With a custom `will`, set the optional `online_payload` to publish a matching availability message on the same topic when connecting. The default `client_id` is `onvif-mqtt-<hostname>-<pid>`. MQTT reconnects automatically, and pending publishes are kept in a bounded queue that drops the oldest message when full.
+The MQTT `client_id`, `will`, `qos`, `retain`, and TLS settings are optional:
+- **QoS & Retain:** Event publishes default to QoS 0 with no retain. You can configure global `qos` (0, 1, or 2) and `retain` (true/false) under `mqtt`, or override per-camera under each camera entry.
+- **TLS / Secure MQTT:** Connect via `mqtts://` broker URLs. Set `ca_cert`, `client_cert`, `client_key` (file paths), or `reject_unauthorized: false` under `mqtt` if needed.
+- **Last Will:** Without a `will`, the broker publishes a retained `{"name":"onvif-mqtt","action":"offline"}` Last Will to `<topic_root>/status` with QoS 1 if the bridge disconnects unexpectedly. Without a `will`, the bridge also publishes a retained `{"name":"onvif-mqtt","action":"online"}` to that topic on every (re)connect and a retained `offline` on clean shutdown. With a custom `will`, set the optional `online_payload` to publish a matching availability message on the same topic when connecting.
+- **Reliability:** The default `client_id` is `onvif-mqtt-<hostname>-<pid>`. MQTT reconnects automatically, and pending publishes are kept in a bounded queue that drops the oldest message when full.
 
 Logging is configured through the environment: `PINO_LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`pretty` by default, or `json` for plain structured output without the `pino-pretty` worker thread).
 
