@@ -88,12 +88,13 @@ describe('main startup', () => {
 
         expect(camera.dispose).toHaveBeenCalledTimes(1);
         expect(clearInterval).toHaveBeenCalledTimes(1);
-        expect(clearTimeout).toHaveBeenCalledTimes(1);
+        // one pending reconnect timer plus the shutdown deadline
+        expect(clearTimeout).toHaveBeenCalledTimes(2);
         expect(service.close).toHaveBeenCalledTimes(1);
         expect(process.exitCode).toBe(0);
     });
 
-    it('does not reconnect after an authentication failure', async () => {
+    it('does not back off after an authentication failure but retries it on the next ping cycle', async () => {
         const service = {
             ping: jest.fn().mockResolvedValue(undefined),
             notify: jest.fn().mockResolvedValue(undefined),
@@ -104,7 +105,7 @@ describe('main startup', () => {
         const setInterval = jest.spyOn(global, 'setInterval');
         mockGetMQTT.mockResolvedValue(service);
         mockListCameras.mockReturnValue(['door']);
-        mockGetCamera.mockRejectedValueOnce(new Error('Digest authentication failed 401'));
+        mockGetCamera.mockRejectedValue(new Error('Digest authentication failed 401'));
 
         jest.isolateModules(() => {
             jest.requireActual('../src/main');
@@ -115,8 +116,11 @@ describe('main startup', () => {
         const pingCycle = setInterval.mock.calls[0]?.[0] as (() => void) | undefined;
         pingCycle?.();
         await new Promise<void>((resolve) => setImmediate(resolve));
+        // no backoff timer was scheduled, but the ping cycle made one more attempt
         expect(setTimeout).not.toHaveBeenCalled();
-        expect(service.error).toHaveBeenCalledTimes(1);
+        expect(mockGetCamera).toHaveBeenCalledTimes(2);
+        expect(service.error).toHaveBeenCalledTimes(2);
+        expect(service.error).toHaveBeenCalledWith('[door] connection failed: authentication failed');
         process.emit('SIGTERM');
         await new Promise<void>((resolve) => setImmediate(resolve));
     });

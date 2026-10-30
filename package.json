@@ -19,7 +19,7 @@
     "format:check": "prettier --check \"{src,test}/**/*.ts\"",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "build": "npm run clean && npm run format && npm run lint && tsc --pretty",
+    "build": "npm run clean && npm run format:check && npm run lint && tsc --pretty",
     "start": "node --enable-source-maps lib/main.js",
     "release": "commit-and-tag-version",
     "test": "jest --passWithNoTests"
