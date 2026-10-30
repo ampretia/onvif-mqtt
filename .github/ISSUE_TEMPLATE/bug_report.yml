@@ -1,0 +1,53 @@
+name: Bug report
+description: Something is not working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Redact credentials** (camera and MQTT passwords, URLs that embed credentials) from anything you paste.
+        For security problems, do not open an issue; see the [security policy](https://github.com/ampretia/onvif-mqtt/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: onvif-mqtt version
+      description: Release version or Docker image tag.
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: How are you running it?
+      options:
+        - Docker
+        - Node.js
+    validations:
+      required: true
+  - type: input
+    id: camera
+    attributes:
+      label: Camera make, model and firmware
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log output, with credentials removed. Set `PINO_LOG_LEVEL=debug` if useful.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your `.onvif-mqttrc.json` with hostnames, usernames and passwords removed.
+      render: json
+    validations:
+      required: false
