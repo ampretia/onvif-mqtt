@@ -9,7 +9,12 @@ const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
 describe('Camera.getCamera', () => {
     beforeEach(() => {
         mockGetConfig.mockReturnValue({
-            mqtt: { broker_host: 'mqtt://localhost', topic_root: 'camera' },
+            mqtt: {
+                broker_host: 'mqtt://localhost',
+                topic_root: 'camera',
+                username: 'user',
+                password: 'password',
+            },
             cameras: {},
         });
     });

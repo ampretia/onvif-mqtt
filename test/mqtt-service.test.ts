@@ -51,7 +51,7 @@ describe('MQTTService', () => {
 
         await service.processEvent({
             name: 'front-door',
-            eventTime: { toJSON: () => '2026-10-21T12:00:00.000Z' },
+            eventTime: '2026-10-21T12:00:00.000Z',
             eventTopic: 'Motion',
             eventProperty: 'Changed',
             sourceName: 'Source',
@@ -148,7 +148,7 @@ describe('MQTTService', () => {
         );
 
         client.connected = true;
-        client.emit('connect', {});
+        client.emit('connect', { cmd: 'connack', sessionPresent: false } as unknown as import('mqtt').IConnackPacket);
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         // the online status message plus the 100 retained queue entries
@@ -172,7 +172,7 @@ describe('MQTTService', () => {
 
         client.emit('error', new Error('socket closed'));
         expect(logger.error).toHaveBeenCalledWith({ err: expect.any(Error) }, 'MQTT client error');
-        client.emit('connect', {});
+        client.emit('connect', { cmd: 'connack', sessionPresent: false } as unknown as import('mqtt').IConnackPacket);
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         // online status, failed ping, online status again on reconnect, then the retried ping
@@ -184,7 +184,7 @@ describe('MQTTService', () => {
 
         await service.processEvent({
             name: 'front-door',
-            eventTime: { toJSON: () => '2026-10-21T12:00:00.000Z' },
+            eventTime: '2026-10-21T12:00:00.000Z',
             eventTopic: 'Rule//Motion+/People#',
             eventProperty: 'Changed',
             sourceName: 'Source',
@@ -205,7 +205,7 @@ describe('MQTTService', () => {
 
         await service.processEvent({
             name: 'front-door',
-            eventTime: { toJSON: () => '2026-10-21T12:00:00.000Z' },
+            eventTime: '2026-10-21T12:00:00.000Z',
             eventTopic: '//',
             eventProperty: 'Changed',
             sourceName: 'Source',
