@@ -1,5 +1,6 @@
 module.exports = {
     verbose: true,
+    setupFiles: ['<rootDir>/test/setup-env.ts'],
     transform: {
         '^.+\\.tsx?$': [
             '@swc/jest',

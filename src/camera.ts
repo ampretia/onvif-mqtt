@@ -3,10 +3,15 @@
  */
 
 import { logger } from './logger';
-import { getConfig } from './config';
+import { CameraConfig, getConfig } from './config';
 import { Cam, CamCallback, CamOptions, DeviceInformation, SystemDateAndTime, Capabilities } from 'onvif';
 import * as util from 'util';
-import { isAuthenticationError, nextRetryDelay } from './retry';
+import { isAuthenticationError, withRetry } from './retry';
+
+const DISPOSE_TIMEOUT_MS = 10_000;
+/** Messages produced by the onvif library that we need to recognise */
+const NETWORK_TIMEOUT_MESSAGE = 'Network timeout';
+const NO_PULL_POINT_MESSAGE = 'You should create pull-point subscription first!';
 
 type CamWithUnsubscribe = Cam & { unsubscribe(callback: (error: Error | null) => void): void };
 
@@ -30,16 +35,25 @@ interface OnvifMessage {
     };
 }
 
+/** Create an error carrying `cause`, whose stack points at the (project) call site rather than inside onvif */
+function wrapError(message: string, cause: Error, callSite: Error): Error {
+    const wrapped = new Error(message, { cause });
+    wrapped.stack = `Error: ${message}\n${(callSite.stack ?? '').split('\n').slice(1).join('\n')}`;
+    return wrapped;
+}
+
 /** Wrapper around the onvif Cam class
  *  Aim is to provide typed/async exposed functions
  */
 export default class Camera {
     private _cam: Cam;
     private _name: string;
+    private _connect: CameraConfig['connect'];
 
-    private constructor(cam: Cam, name: string) {
+    private constructor(cam: Cam, name: string, connect: CameraConfig['connect']) {
         this._cam = cam;
         this._name = name;
+        this._connect = connect;
     }
 
     /** list the name of the configured cameras */
@@ -47,59 +61,50 @@ export default class Camera {
         return Object.keys(getConfig().cameras);
     }
 
-    public static async getCamera(name: string): Promise<Camera> {
-        let cam: Camera | undefined;
-
+    /**
+     * Connect to a configured camera, retrying (with exponential backoff) using the camera's
+     * `connect.retries` / `connect.delay`. Authentication failures are never retried here.
+     * Aborting `signal` cancels any pending backoff wait.
+     */
+    public static async getCamera(name: string, signal?: AbortSignal): Promise<Camera> {
         const camCfg = getConfig().cameras[name];
-        let retries = camCfg.connect.retries;
-        let retryDelay = camCfg.connect.delay;
-        while (!cam) {
-            try {
-                logger.info(`[${name}] Creating new Cam - retry left:${retries}`);
-                cam = await new Promise<Camera>((resolve, reject) => {
-                    const options: CamOptions = {
-                        hostname: camCfg.hostname,
-                        username: camCfg.username,
-                        password: camCfg.password,
-                        port: camCfg.onvif_port,
-                        timeout: 10000,
-                        autoconnect: true,
-                        preserveAddress: true, // Enables NAT support and re-writes for PullPointSubscription URL
-                    };
-                    const callSite = new Error();
-                    const cam = new Cam(options, (err: Error | null) => {
-                        if (err) {
-                            const wrapped = new Error(`[${name}] connect failed: ${err.message}`, { cause: err });
-                            wrapped.stack = `Error: ${wrapped.message}\n${(callSite.stack ?? '')
-                                .split('\n')
-                                .slice(1)
-                                .join('\n')}`;
-                            reject(wrapped);
-                            return;
-                        }
-
-                        resolve(new Camera(cam, name));
-                    });
-                });
-            } catch (error) {
-                if (isAuthenticationError(error)) {
-                    throw error;
-                }
-                if (retries < 1) {
-                    throw error;
-                }
-                retries--;
-                await this.wait(retryDelay);
-                retryDelay = nextRetryDelay(retryDelay);
-            }
-        }
-
-        return cam;
+        let retriesLeft = camCfg.connect.retries;
+        return withRetry(
+            () => {
+                logger.info(`[${name}] Creating new Cam - retry left:${retriesLeft}`);
+                return Camera.connect(name, camCfg);
+            },
+            {
+                ...camCfg.connect,
+                signal,
+                shouldRetry: (error) => !isAuthenticationError(error),
+                onRetry: () => {
+                    retriesLeft--;
+                },
+            },
+        );
     }
 
-    private static async wait(time: number): Promise<void> {
-        return new Promise((resolve) => {
-            setTimeout(() => resolve(), time);
+    private static connect(name: string, camCfg: CameraConfig): Promise<Camera> {
+        // Errors raised inside the onvif library have no frames from this project; keep the call site
+        const callSite = new Error();
+        return new Promise<Camera>((resolve, reject) => {
+            const options: CamOptions = {
+                hostname: camCfg.hostname,
+                username: camCfg.username,
+                password: camCfg.password,
+                port: camCfg.onvif_port,
+                timeout: 10000,
+                autoconnect: true,
+                preserveAddress: true, // Enables NAT support and re-writes for PullPointSubscription URL
+            };
+            const cam = new Cam(options, (err: Error | null) => {
+                if (err) {
+                    reject(wrapError(`[${name}] connect failed: ${err.message}`, err, callSite));
+                    return;
+                }
+                resolve(new Camera(cam, name, camCfg.connect));
+            });
         });
     }
 
@@ -117,34 +122,33 @@ export default class Camera {
         fn: (cb: CamCallback<T>) => void,
     ): Promise<{ info: T | undefined; xml: string | undefined }> {
         const callSite = new Error();
-        const { retries, delay } = getConfig().cameras[this._name].connect;
-        let retryDelay = delay;
-        for (let attempt = 0; ; attempt++) {
-            try {
-                return await new Promise((resolve, reject) => {
-                    fn((err: Error | null, info?: T, xml?: string) => {
-                        if (err) {
-                            reject(err);
-                            return;
-                        }
-                        resolve({ info, xml });
-                    });
-                });
-            } catch (e: unknown) {
-                const err = e as Error;
-                if (isAuthenticationError(err)) {
-                    throw err;
-                }
-                if (err.message === 'Network timeout' && attempt < retries) {
-                    logger.warn(`[${this._name}] ${operation} timed out - retry ${attempt + 1} of ${retries}`);
-                    await Camera.wait(retryDelay);
-                    retryDelay = nextRetryDelay(retryDelay);
-                    continue;
-                }
-                const wrapped = new Error(`[${this._name}] ${operation} failed: ${err.message}`, { cause: err });
-                wrapped.stack = `Error: ${wrapped.message}\n${(callSite.stack ?? '').split('\n').slice(1).join('\n')}`;
-                throw wrapped;
+        const { retries, delay } = this._connect;
+        try {
+            return await withRetry(
+                () =>
+                    new Promise<{ info: T | undefined; xml: string | undefined }>((resolve, reject) => {
+                        fn((err: Error | null, info?: T, xml?: string) => {
+                            if (err) {
+                                reject(err);
+                                return;
+                            }
+                            resolve({ info, xml });
+                        });
+                    }),
+                {
+                    retries,
+                    delay,
+                    shouldRetry: (e) => e instanceof Error && e.message === NETWORK_TIMEOUT_MESSAGE,
+                    onRetry: (_e, attempt) =>
+                        logger.warn(`[${this._name}] ${operation} timed out - retry ${attempt} of ${retries}`),
+                },
+            );
+        } catch (e: unknown) {
+            if (isAuthenticationError(e)) {
+                throw e;
             }
+            const err = e as Error;
+            throw wrapError(`[${this._name}] ${operation} failed: ${err.message}`, err, callSite);
         }
     }
 
@@ -164,11 +168,11 @@ export default class Camera {
         this._cam.on('event', (...args: unknown[]) => {
             const camMessage = args[0];
             const xml = args[1] as string | undefined;
-            const camEvent = this.processCamMessage({ camMessage, xml });
-            const handled = camEvent ? handler(camEvent) : Promise.resolve();
-            handled
-                .then(() => logger.debug(`[${this._name}] Event handled`))
-                .catch((err: unknown) => logger.error({ err }, `[${this._name}] Event handler failed`));
+            for (const camEvent of this.processCamMessage({ camMessage, xml })) {
+                handler(camEvent)
+                    .then(() => logger.debug(`[${this._name}] Event handled`))
+                    .catch((err: unknown) => logger.error({ err }, `[${this._name}] Event handler failed`));
+            }
         });
     }
 
@@ -195,9 +199,16 @@ export default class Camera {
     /** Stop event delivery so this instance can be discarded and replaced by a new connection */
     public async dispose(): Promise<void> {
         this._cam.removeAllListeners();
+        // An EventEmitter throws on an 'error' with no listener; keep a sink so late errors cannot crash the process
+        this._cam.on('error', (err: unknown) => logger.debug({ err }, `[${this._name}] Ignoring error after dispose`));
         await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error(`[${this._name}] unsubscribe timed out after ${DISPOSE_TIMEOUT_MS}ms`)),
+                DISPOSE_TIMEOUT_MS,
+            );
             (this._cam as CamWithUnsubscribe).unsubscribe((error: Error | null) => {
-                if (error && error.message !== 'You should create pull-point subscription first!') {
+                clearTimeout(timer);
+                if (error && error.message !== NO_PULL_POINT_MESSAGE) {
                     reject(error);
                     return;
                 }
@@ -206,128 +217,61 @@ export default class Camera {
         });
     }
 
-    private processCamMessage({ camMessage, xml }: { camMessage: unknown; xml: unknown }): CamEvent | undefined {
+    /** Convert a raw ONVIF message into one CamEvent per data item (empty if the message cannot be parsed) */
+    private processCamMessage({ camMessage, xml }: { camMessage: unknown; xml: unknown }): CamEvent[] {
         const msg = camMessage as OnvifMessage;
         try {
-            logger.debug(`CamMessage:::${util.inspect(camMessage, true, 6, true)}`);
-            logger.debug(`CamMessage:::${util.inspect(xml, true, 6, true)}`);
-            // Extract Event Details
+            if (logger.isLevelEnabled('debug')) {
+                logger.debug(`CamMessage:::${util.inspect(camMessage, true, 6, false)}`);
+                logger.debug(`CamMessage:::${util.inspect(xml, true, 6, false)}`);
+            }
             // Events have a Topic
             // Events have (optionally) a Source, a Key and Data fields
             // The Source,Key and Data fields can be single items or an array of items
-            // The Source,Key and Data fields can be of type SimpleItem or a Complex Item
+            // Only simpleItem is handled for Source (first item only); Key is ignored
+            // (nothing I own produces it); every Data item produces its own event.
 
-            //    - Topic
-            //    - Message/Message/$
-            //    - Message/Message/Source...
-            //    - Message/Message/Key...
-            //    - Message/Message/Data/SimpleItem/[index]/$/name   (array of items)
-            // OR - Message/Message/Data/SimpleItem/$/name   (single item)
-            //    - Message/Message/Data/SimpleItem/[index]/$/value   (array of items)
-            // OR - Message/Message/Data/SimpleItem/$/value   (single item)
-
-            let eventTopic = msg.topic._;
-            eventTopic = this.stripNamespaces(eventTopic);
-
-            const eventTime = msg.message.message.$.UtcTime;
-
-            const eventProperty = msg.message.message.$.PropertyOperation;
+            const eventTopic = this.stripNamespaces(msg.topic._);
+            const { $: attributes, source, key, data } = msg.message.message;
+            const eventTime = attributes.UtcTime;
             // Supposed to be Initialized, Deleted or Changed but missing/undefined on the Avigilon 4 channel encoder
+            const eventProperty = attributes.PropertyOperation;
 
-            // Only handle simpleItem
-            // Only handle one 'source' item
-            // Ignore the 'key' item  (nothing I own produces it)
-            // Handle all the 'Data' items
-
-            // SOURCE (Name:Value)
-            let sourceName = null;
-            let sourceValue = null;
-            if (msg.message.message.source && msg.message.message.source.simpleItem) {
-                if (Array.isArray(msg.message.message.source.simpleItem)) {
-                    sourceName = msg.message.message.source.simpleItem[0].$.Name;
-                    sourceValue = msg.message.message.source.simpleItem[0].$.Value;
+            let sourceName: string | null = null;
+            let sourceValue: string | null = null;
+            if (source?.simpleItem) {
+                const sourceItems = ([] as SimpleItem[]).concat(source.simpleItem);
+                if (sourceItems.length > 1) {
                     logger.warn('WARNING: Only processing first Event Source item');
-                } else {
-                    sourceName = msg.message.message.source.simpleItem.$.Name;
-                    sourceValue = msg.message.message.source.simpleItem.$.Value;
                 }
+                sourceName = sourceItems[0].$.Name;
+                sourceValue = sourceItems[0].$.Value;
             } else {
-                sourceName = null;
-                sourceValue = null;
                 logger.warn('WARNING: Source does not contain a simpleItem');
             }
 
-            //KEY
-            if (msg.message.message.key) {
+            if (key) {
                 logger.warn('NOTE: Event has a Key');
             }
 
-            // DATA (Name:Value)
-            if (msg.message.message.data && msg.message.message.data.simpleItem) {
-                if (Array.isArray(msg.message.message.data.simpleItem)) {
-                    for (let x = 0; x < msg.message.message.data.simpleItem.length; x++) {
-                        const dataName = msg.message.message.data.simpleItem[x].$.Name;
-                        const dataValue = msg.message.message.data.simpleItem[x].$.Value;
-                        return {
-                            name: this._name,
-                            eventTime,
-                            eventTopic,
-                            eventProperty,
-                            sourceName,
-                            sourceValue,
-                            dataName,
-                            dataValue,
-                        };
-                    }
-                } else {
-                    const dataName = msg.message.message.data.simpleItem.$.Name;
-                    const dataValue = msg.message.message.data.simpleItem.$.Value;
-                    return {
-                        name: this._name,
-                        eventTime,
-                        eventTopic,
-                        eventProperty,
-                        sourceName,
-                        sourceValue,
-                        dataName,
-                        dataValue,
-                    };
-                }
-            } else if (msg.message.message.data && msg.message.message.data.elementItem) {
-                logger.warn('WARNING: Data contain an elementItem');
-                const dataName = 'elementItem';
-                const dataValue = JSON.stringify(msg.message.message.data.elementItem);
-                return {
-                    name: this._name,
-                    eventTime,
-                    eventTopic,
-                    eventProperty,
-                    sourceName,
-                    sourceValue,
-                    dataName,
-                    dataValue,
-                };
-            } else {
-                logger.warn('WARNING: Data does not contain a simpleItem or elementItem');
-                const dataName = null;
-                const dataValue = null;
-                return {
-                    name: this._name,
-                    eventTime,
-                    eventTopic,
-                    eventProperty,
-                    sourceName,
-                    sourceValue,
-                    dataName,
-                    dataValue,
-                };
+            const base = { name: this._name, eventTime, eventTopic, eventProperty, sourceName, sourceValue };
+
+            if (data?.simpleItem) {
+                return ([] as SimpleItem[])
+                    .concat(data.simpleItem)
+                    .map((item) => ({ ...base, dataName: item.$.Name, dataValue: item.$.Value }));
             }
+            if (data?.elementItem) {
+                logger.warn('WARNING: Data contain an elementItem');
+                return [{ ...base, dataName: 'elementItem', dataValue: JSON.stringify(data.elementItem) }];
+            }
+            logger.warn('WARNING: Data does not contain a simpleItem or elementItem');
+            return [{ ...base, dataName: null, dataValue: null }];
         } catch (err: unknown) {
             logger.error(err);
             logger.info(`Event::::  ${JSON.stringify(camMessage)}`);
-            return undefined;
+            return [];
         }
-        return undefined;
     }
 
     stripNamespaces(topic: string): string {

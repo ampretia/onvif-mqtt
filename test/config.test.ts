@@ -163,4 +163,29 @@ describe('loadConfig', () => {
         };
         expect(importEntryPoint).not.toThrow();
     });
+
+    it('rejects wildcards in topic_root', () => {
+        writeConfig({}, { topic_root: 'camera/#' });
+
+        expect(() => loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } })).toThrow('mqtt.topic_root');
+    });
+
+    it('reports every problem in one error', () => {
+        writeConfig({ door: { ...validCamera(), hostname: '', onvif_port: 'x' } });
+
+        expect(() => loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } })).toThrow(
+            /cameras\.door\.hostname.*cameras\.door\.onvif_port/,
+        );
+    });
+
+    it('accepts an optional Last Will online_payload', () => {
+        writeConfig(
+            {},
+            { will: { topic: 'base/status', payload: 'offline', online_payload: 'online', qos: 1, retain: true } },
+        );
+
+        const config = loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } });
+
+        expect(config.mqtt.will?.online_payload).toBe('online');
+    });
 });

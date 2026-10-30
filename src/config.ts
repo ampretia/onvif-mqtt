@@ -5,33 +5,49 @@
 import { cosmiconfigSync } from 'cosmiconfig';
 import { z } from 'zod';
 
-export interface CameraConfig {
-    hostname: string;
-    onvif_port: string;
-    username: string;
-    password: string;
-    connect: {
-        retries: number;
-        delay: number;
-    };
-}
+const nonEmptyString = z.string().min(1, 'must be a non-empty string');
+const noWildcards = (value: string) => !/[+#]/.test(value);
+const nonNegativeInteger = z
+    .number()
+    .int('must be a non-negative integer')
+    .nonnegative('must be a non-negative integer');
 
-export interface AppConfig {
-    mqtt: {
-        broker_host: string;
-        topic_root: string;
-        username: string;
-        password: string;
-        client_id?: string;
-        will?: {
-            topic: string;
-            payload: string;
-            qos?: 0 | 1 | 2;
-            retain?: boolean;
-        };
-    };
-    cameras: Record<string, CameraConfig>;
-}
+const cameraSchema = z.object({
+    hostname: nonEmptyString,
+    onvif_port: nonEmptyString.regex(/^\d+$/, 'must be numeric'),
+    username: nonEmptyString,
+    password: nonEmptyString,
+    connect: z.object({ retries: nonNegativeInteger, delay: nonNegativeInteger }),
+});
+
+const willSchema = z.object({
+    topic: nonEmptyString.refine(noWildcards, 'must not contain MQTT wildcards'),
+    payload: nonEmptyString,
+    online_payload: nonEmptyString.optional(),
+    qos: z.union([z.literal(0), z.literal(1), z.literal(2)], { error: 'must be 0, 1, or 2' }).optional(),
+    retain: z.boolean({ error: 'must be a boolean' }).optional(),
+});
+
+const appConfigSchema = z.object({
+    mqtt: z.object({
+        broker_host: nonEmptyString,
+        topic_root: nonEmptyString.refine(noWildcards, 'must not contain MQTT wildcards'),
+        username: nonEmptyString,
+        password: nonEmptyString,
+        client_id: nonEmptyString.optional(),
+        will: willSchema.optional(),
+    }),
+    cameras: z.record(z.string(), cameraSchema).superRefine((cameras, ctx) => {
+        for (const name of Object.keys(cameras)) {
+            if (name.length === 0 || /[+#/]/.test(name)) {
+                ctx.addIssue({ code: 'custom', path: [name], message: 'must be a valid MQTT topic segment' });
+            }
+        }
+    }),
+});
+
+export type CameraConfig = z.infer<typeof cameraSchema>;
+export type AppConfig = z.infer<typeof appConfigSchema>;
 
 interface ConfigOptions {
     cwd?: string;
@@ -41,8 +57,6 @@ interface ConfigOptions {
 type ConfigObject = Record<string, unknown>;
 
 const explorer = cosmiconfigSync('onvif-mqtt');
-const nonNegativeIntegerSchema = z.number().int().nonnegative();
-const numericPortSchema = z.string().regex(/^\d+$/);
 
 function isObject(value: unknown): value is ConfigObject {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -94,66 +108,16 @@ function validateEnvironmentSecrets(value: unknown, env: NodeJS.ProcessEnv): Rec
     return result.data;
 }
 
-function requireObject(value: unknown, name: string): ConfigObject {
-    if (!isObject(value)) {
-        throw new Error(`Configuration field "${name}" must be an object`);
-    }
-    return value;
-}
-
-function requireString(value: unknown, name: string): string {
-    if (typeof value !== 'string' || value.length === 0) {
-        throw new Error(`Configuration field "${name}" must be a non-empty string`);
-    }
-    return value;
-}
-
 function validateConfig(value: unknown): AppConfig {
-    const root = requireObject(value, 'root');
-    const mqtt = requireObject(root.mqtt, 'mqtt');
-    const cameras = requireObject(root.cameras, 'cameras');
-
-    for (const key of ['broker_host', 'topic_root', 'username', 'password']) {
-        requireString(mqtt[key], `mqtt.${key}`);
+    const result = appConfigSchema.safeParse(value);
+    if (!result.success) {
+        const problems = result.error.issues.map((issue) => {
+            const field = issue.path.length > 0 ? issue.path.join('.') : 'root';
+            return `Configuration field "${field}" ${issue.message}`;
+        });
+        throw new Error(problems.join('; '));
     }
-    if (mqtt.client_id !== undefined) {
-        requireString(mqtt.client_id, 'mqtt.client_id');
-    }
-    if (mqtt.will !== undefined) {
-        const will = requireObject(mqtt.will, 'mqtt.will');
-        requireString(will.topic, 'mqtt.will.topic');
-        requireString(will.payload, 'mqtt.will.payload');
-        if (/[+#]/.test(will.topic as string)) {
-            throw new Error('Configuration field "mqtt.will.topic" must not contain MQTT wildcards');
-        }
-        if (will.qos !== undefined && (typeof will.qos !== 'number' || ![0, 1, 2].includes(will.qos))) {
-            throw new Error('Configuration field "mqtt.will.qos" must be 0, 1, or 2');
-        }
-        if (will.retain !== undefined && typeof will.retain !== 'boolean') {
-            throw new Error('Configuration field "mqtt.will.retain" must be a boolean');
-        }
-    }
-
-    for (const [name, cameraValue] of Object.entries(cameras)) {
-        if (name.length === 0 || /[+#/]/.test(name)) {
-            throw new Error(`Configuration field "cameras.${name}" must be a valid MQTT topic segment`);
-        }
-        const camera = requireObject(cameraValue, `cameras.${name}`);
-        for (const key of ['hostname', 'onvif_port', 'username', 'password']) {
-            requireString(camera[key], `cameras.${name}.${key}`);
-        }
-        if (!numericPortSchema.safeParse(camera.onvif_port).success) {
-            throw new Error(`Configuration field "cameras.${name}.onvif_port" must be numeric`);
-        }
-        const connect = requireObject(camera.connect, `cameras.${name}.connect`);
-        for (const key of ['retries', 'delay']) {
-            if (!nonNegativeIntegerSchema.safeParse(connect[key]).success) {
-                throw new Error(`Configuration field "cameras.${name}.connect.${key}" must be a non-negative integer`);
-            }
-        }
-    }
-
-    return value as AppConfig;
+    return result.data;
 }
 
 export function loadConfig(options: ConfigOptions = {}): AppConfig {

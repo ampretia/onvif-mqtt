@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { hostname } from 'os';
 import MQTT from 'mqtt';
 import { getConfig } from '../src/config';
 import { logger } from '../src/logger';
@@ -65,7 +66,7 @@ describe('MQTTService', () => {
         expect(mockConnectAsync).toHaveBeenCalledWith('mqtt://localhost', {
             username: 'mqtt-user',
             password: 'mqtt-password',
-            clientId: `onvif-mqtt-${process.pid}`,
+            clientId: `onvif-mqtt-${hostname()}-${process.pid}`,
             reconnectPeriod: 1000,
             queueQoSZero: false,
             will: {
@@ -77,6 +78,12 @@ describe('MQTTService', () => {
         });
         expect(client.publishAsync).toHaveBeenNthCalledWith(
             1,
+            'camera/status',
+            JSON.stringify({ name: 'onvif-mqtt', action: 'online' }),
+            { qos: 1, retain: true },
+        );
+        expect(client.publishAsync).toHaveBeenNthCalledWith(
+            2,
             'camera/front-door/Motion',
             JSON.stringify({
                 eventTime: '2026-10-21T12:00:00.000Z',
@@ -88,14 +95,20 @@ describe('MQTTService', () => {
             }),
         );
         expect(client.publishAsync).toHaveBeenNthCalledWith(
-            2,
+            3,
             'camera',
             JSON.stringify({ name: 'onvif-mqtt', action: 'started', version: 1 }),
         );
         expect(client.publishAsync).toHaveBeenNthCalledWith(
-            3,
+            4,
             'camera',
-            JSON.stringify({ name: 'onvif-mqtt', action: 'notifiy', text: 'ready' }),
+            JSON.stringify({ name: 'onvif-mqtt', action: 'notify', text: 'ready' }),
+        );
+        expect(client.publishAsync).toHaveBeenNthCalledWith(
+            5,
+            'camera/status',
+            JSON.stringify({ name: 'onvif-mqtt', action: 'offline' }),
+            { qos: 1, retain: true },
         );
         expect(client.endAsync).toHaveBeenCalledTimes(1);
     });
@@ -138,11 +151,12 @@ describe('MQTTService', () => {
         client.emit('connect', {});
         await new Promise<void>((resolve) => setImmediate(resolve));
 
-        expect(client.publishAsync).toHaveBeenCalledTimes(100);
+        // the online status message plus the 100 retained queue entries
+        expect(client.publishAsync).toHaveBeenCalledTimes(101);
         expect(client.publishAsync).toHaveBeenNthCalledWith(
-            1,
+            2,
             'camera',
-            JSON.stringify({ name: 'onvif-mqtt', action: 'notifiy', text: 'message-1' }),
+            JSON.stringify({ name: 'onvif-mqtt', action: 'notify', text: 'message-1' }),
         );
     });
 
@@ -153,7 +167,7 @@ describe('MQTTService', () => {
         await expect(service.ping(1)).resolves.toBeUndefined();
         expect(logger.error).toHaveBeenCalledWith(
             { err: expect.any(Error), topic: 'camera' },
-            'MQTT publish failed; queued for retry',
+            'MQTT publish failed; will retry on reconnect',
         );
 
         client.emit('error', new Error('socket closed'));
@@ -161,7 +175,8 @@ describe('MQTTService', () => {
         client.emit('connect', {});
         await new Promise<void>((resolve) => setImmediate(resolve));
 
-        expect(client.publishAsync).toHaveBeenCalledTimes(2);
+        // online status, failed ping, online status again on reconnect, then the retried ping
+        expect(client.publishAsync).toHaveBeenCalledTimes(4);
     });
 
     it('sanitizes event topic segments while preserving the topic hierarchy', async () => {
@@ -186,6 +201,7 @@ describe('MQTTService', () => {
 
     it('skips events without any non-empty topic segments', async () => {
         const service = await MQTTService.getMQTT();
+        client.publishAsync.mockClear();
 
         await service.processEvent({
             name: 'front-door',
@@ -199,5 +215,65 @@ describe('MQTTService', () => {
         });
 
         expect(client.publishAsync).not.toHaveBeenCalled();
+    });
+
+    it('keeps publish order when messages are published while a flush is in flight', async () => {
+        const service = await MQTTService.getMQTT();
+        client.publishAsync.mockClear();
+        let release: () => void = () => {};
+        client.publishAsync.mockImplementationOnce(
+            () => new Promise<never>((resolve) => (release = () => resolve(undefined as never))),
+        );
+
+        const first = service.notify('first');
+        const second = service.notify('second');
+        release();
+        await Promise.all([first, second]);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const texts: string[] = client.publishAsync.mock.calls.map(
+            ([, payload]) => (JSON.parse(payload as string) as { text: string }).text,
+        );
+        expect(texts).toEqual(['first', 'second']);
+    });
+
+    it('does not lose or duplicate messages when the queue overflows during a flush', async () => {
+        const service = await MQTTService.getMQTT();
+        client.publishAsync.mockClear();
+        let release: () => void = () => {};
+        client.publishAsync.mockImplementationOnce(
+            () => new Promise<never>((resolve) => (release = () => resolve(undefined as never))),
+        );
+
+        const pending = service.notify('m-0');
+        for (let index = 1; index <= 100; index += 1) {
+            void service.notify(`m-${index}`);
+        }
+        release();
+        await pending;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const texts: string[] = client.publishAsync.mock.calls.map(
+            ([, payload]) => (JSON.parse(payload as string) as { text: string }).text,
+        );
+        expect(new Set(texts).size).toBe(texts.length);
+        expect(texts).toEqual(Array.from({ length: texts.length }, (_, index) => `m-${index}`));
+        expect(texts[texts.length - 1]).toBe('m-100');
+    });
+
+    it('drops a message that repeatedly fails so it cannot block the queue', async () => {
+        const service = await MQTTService.getMQTT();
+        client.publishAsync.mockClear();
+        client.publishAsync.mockRejectedValue(new Error('payload rejected'));
+
+        await service.notify('poison');
+        await service.ping(1); // drives another flush attempt
+        await service.ping(1);
+        client.publishAsync.mockResolvedValue(undefined);
+        await service.notify('good');
+
+        expect(logger.error).toHaveBeenCalledWith({ topic: 'camera' }, 'Dropping MQTT publish after repeated failures');
+        const lastPayload = client.publishAsync.mock.calls[client.publishAsync.mock.calls.length - 1]?.[1] as string;
+        expect(JSON.parse(lastPayload)).toMatchObject({ text: 'good' });
     });
 });
