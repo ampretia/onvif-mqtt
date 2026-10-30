@@ -7,15 +7,11 @@ jest.mock('../src/mqtt-service', () => ({
     default: { getMQTT: jest.fn() },
 }));
 jest.mock('../src/logger', () => ({
-    logger: { info: jest.fn(), error: jest.fn() },
+    logger: { info: jest.fn(), error: jest.fn(), debug: jest.fn(), warn: jest.fn() },
 }));
 jest.mock('../src/camera', () => ({
     __esModule: true,
     default: { listCameras: jest.fn(() => []), getCamera: jest.fn() },
-}));
-jest.mock('chalk', () => ({
-    __esModule: true,
-    default: { blue: { bold: (text: string) => text } },
 }));
 
 const mockGetMQTT = jest.mocked(MQTTService.getMQTT);

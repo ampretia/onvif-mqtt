@@ -125,21 +125,20 @@ export function createApp(version: string): App {
 
             logger.info(`[${name}] Connected`);
             const info = await cam.getDeviceInformation();
-            logger.info(info.info);
+            logger.debug({ info: info.info }, `[${name}] Device information`);
 
             const cameraDataTime = await cam.getSystemDateAndTime();
             logger.info(`[${name}] Camera Time is ${JSON.stringify(cameraDataTime.info)}`);
 
             const cameraCapabilities = await cam.getCapabilities();
-            logger.info(`[${name}] Capabilities::`);
-            logger.info(`${JSON.stringify(cameraCapabilities.info)}`);
+            logger.debug({ capabilities: cameraCapabilities.info }, `[${name}] Capabilities`);
 
             cam.setEventHandler(async (camEvent: CamEvent) => {
                 await service.processEvent(camEvent);
             });
 
             cam.setErrorEventHandler((event: unknown) => {
-                logger.error(event);
+                logger.error({ err: event }, `[${name}] Camera error event`);
             });
 
             logger.info(`[${name}] Event handler added`);

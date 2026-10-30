@@ -5,6 +5,35 @@
 const MAX_RETRY_DELAY_MS = 60 * 60 * 1000;
 const AUTH_ERROR_PATTERN =
     /\b401\b|unauthori[sz]ed|not[\s_-]?authorized|authentication failed|invalid (?:credentials|username|password)/i;
+const TIMEOUT_ERROR_PATTERN =
+    /\btimeout\b|etimedout|esockettimedout|econnreset|econnrefused|ehostunreach|network timeout|socket hang up/i;
+
+export function isTimeoutError(error: unknown): boolean {
+    const visited = new Set<unknown>();
+    let current = error;
+
+    while (current !== null && current !== undefined && !visited.has(current)) {
+        visited.add(current);
+
+        if (typeof current === 'string') {
+            return TIMEOUT_ERROR_PATTERN.test(current);
+        }
+        if (typeof current !== 'object') {
+            return false;
+        }
+
+        const candidate = current as { cause?: unknown; message?: unknown; code?: unknown };
+        if (typeof candidate.code === 'string' && TIMEOUT_ERROR_PATTERN.test(candidate.code)) {
+            return true;
+        }
+        if (typeof candidate.message === 'string' && TIMEOUT_ERROR_PATTERN.test(candidate.message)) {
+            return true;
+        }
+        current = candidate.cause;
+    }
+
+    return false;
+}
 
 export function isAuthenticationError(error: unknown): boolean {
     const visited = new Set<unknown>();
