@@ -51,6 +51,17 @@ export function createApp(version: string): App {
         }
     };
 
+    /** Publish a notification to MQTT; never throws */
+    const notify = async (text: string) => {
+        const service = mqtt;
+        if (!service) return;
+        try {
+            await service.notify(text);
+        } catch (e: unknown) {
+            logger.error({ err: e }, 'Failed to publish notification to MQTT');
+        }
+    };
+
     const trackTask = (task: Promise<void>): Promise<void> => {
         activeTasks.add(task);
         void task.then(
@@ -131,12 +142,13 @@ export function createApp(version: string): App {
                 logger.error(event);
             });
 
+            logger.info(`[${name}] Event handler added`);
+            await notify(`[${name}] Event handler added`);
             allCameras.set(name, cam);
             reconnectDelays.delete(name);
             authenticationFailures.delete(name);
-            logger.info(`[${name}] Event handler added`);
-            await service.notify(`[${name}] Event handler added`);
         } catch (e: unknown) {
+            allCameras.delete(name);
             if (cam) await disposeCamera(name, cam);
             if (shuttingDown) {
                 return;

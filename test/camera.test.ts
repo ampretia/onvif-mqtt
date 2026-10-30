@@ -1,6 +1,12 @@
 import { EventEmitter } from 'events';
 import Camera, { CamEvent } from '../src/camera';
 
+describe('Camera.getCamera', () => {
+    it('rejects with an unknown camera error when the name is not configured', async () => {
+        await expect(Camera.getCamera('unknown-camera')).rejects.toThrow('Unknown camera "unknown-camera"');
+    });
+});
+
 describe('Camera.dispose', () => {
     it('unsubscribes, removes listeners and keeps an error sink', async () => {
         type TestCam = EventEmitter & {
