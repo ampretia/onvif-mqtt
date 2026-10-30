@@ -28,6 +28,10 @@
     "type": "git",
     "url": "https://github.com/ampretia/onvif-mqtt"
   },
+  "homepage": "https://github.com/ampretia/onvif-mqtt#readme",
+  "bugs": {
+    "url": "https://github.com/ampretia/onvif-mqtt/issues"
+  },
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {

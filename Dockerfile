@@ -29,7 +29,4 @@ USER node
 ENV NODE_ENV=production
 WORKDIR /config
 
-# Optional: Add a healthcheck for homelab dashboards/monitoring
-HEALTHCHECK --interval=30s --timeout=3s CMD node -e "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-
 ENTRYPOINT [ "node", "--enable-source-maps", "/usr/src/app/lib/main.js" ]

@@ -2,11 +2,15 @@
 
 _Bridges ONVIF events to MQTT topics_
 
-[![License](https://img.shields.io/badge/License-Apache--2-blue)](#license)
+[![Build](https://github.com/ampretia/onvif-mqtt/actions/workflows/build.yaml/badge.svg)](https://github.com/ampretia/onvif-mqtt/actions/workflows/build.yaml)
+[![Release](https://img.shields.io/github/v/release/ampretia/onvif-mqtt)](https://github.com/ampretia/onvif-mqtt/releases)
+[![License](https://img.shields.io/badge/License-Apache--2-blue)](LICENSE)
 
-## What's New in 1.2.0
+## Upgrading
 
-**Configuration migration:** If upgrading, move your broker and camera settings into `.onvif-mqttrc.json`. Replace password values with environment references such as `@@MQTT_PASSWORD` and set those variables in the process environment (or provide them with Docker's `--env-file`). The application no longer reads its full configuration from `.env`.
+See the [changelog](CHANGELOG.md) for release notes.
+
+**Configuration migration (1.2.0):** If upgrading from an earlier version, move your broker and camera settings into `.onvif-mqttrc.json`. Replace password values with environment references such as `@@MQTT_PASSWORD` and set those variables in the process environment (or provide them with Docker's `--env-file`). The application no longer reads its full configuration from `.env`.
 
 - Configuration is loaded from `.onvif-mqttrc.json`, searched for from the working directory upward.
 - Referenced environment variables are validated at startup, so missing or empty secrets are reported before connecting.
@@ -114,7 +118,7 @@ This will run in the foreground, and produce output like this (with some data re
 \____/_/ /_/|___/_/_/             /_/ /_/ /_/\__, /\__/\__/
                                                /_/
 
-[16:48:40.794] INFO (7): onvif-mqtt  v0.0.12
+[16:48:40.794] INFO (7): onvif-mqtt  v1.3.0
 [16:48:40.838] INFO (7): Connected to MQTT
 [16:48:40.838] INFO (7): [door] Attempting to connect
 [16:48:40.838] INFO (7): [door] Creating new Cam - retry left:5
@@ -155,11 +159,11 @@ This will run in the foreground, and produce output like this (with some data re
 
 ## Running as Docker container
 
-The docker container is built for amd64 armv7 and arm64 (so should cover the RaspberryPI, Odroid C4, and other ARM based SBCs etc. )
-Create a local `.env` file with the settings for your camera, and mqtt broker
+The docker container is built for amd64 and arm64 (so should cover the Raspberry Pi 4/5, Odroid C4, and other 64-bit ARM based SBCs etc. )
+Create a local `.env` file with the passwords referenced from `.onvif-mqttrc.json` (for example `MQTT_PASSWORD`), and mount the directory containing that JSON file at `/config`:
 
 ```
-docker run -rm -t --env-file .env ghcr.io/ampretia/onviffmqtt:sha-9e19f28
+docker run --rm -t --env-file .env -v /directory/with/the/json/file/:/config ghcr.io/ampretia/onvifmqtt:latest
 ```
 
 And that's it

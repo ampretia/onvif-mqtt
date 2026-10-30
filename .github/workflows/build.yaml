@@ -51,10 +51,10 @@ jobs:
           password: ${{secrets.GITHUB_TOKEN}}
 
       - name: Docker meta
-        id: onviffmqtt
+        id: onvifmqtt
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/ampretia/onviffmqtt
+          images: ghcr.io/ampretia/onvifmqtt
           tags: |
             type=schedule
             type=ref,event=branch
@@ -70,6 +70,6 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.onviffmqtt.outputs.tags }}
-          labels: ${{ steps.onviffmqtt.outputs.labels }}
+          tags: ${{ steps.onvifmqtt.outputs.tags }}
+          labels: ${{ steps.onvifmqtt.outputs.labels }}
 
