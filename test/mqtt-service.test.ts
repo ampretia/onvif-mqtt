@@ -93,16 +93,19 @@ describe('MQTTService', () => {
                 dataName: 'State',
                 dataValue: 'true',
             }),
+            { qos: 0, retain: false },
         );
         expect(client.publishAsync).toHaveBeenNthCalledWith(
             3,
             'camera',
             JSON.stringify({ name: 'onvif-mqtt', action: 'started', version: 1 }),
+            { qos: 0, retain: false },
         );
         expect(client.publishAsync).toHaveBeenNthCalledWith(
             4,
             'camera',
             JSON.stringify({ name: 'onvif-mqtt', action: 'notify', text: 'ready' }),
+            { qos: 0, retain: false },
         );
         expect(client.publishAsync).toHaveBeenNthCalledWith(
             5,
@@ -134,6 +137,68 @@ describe('MQTTService', () => {
         );
     });
 
+    it('passes TLS options and rejects unauthorized setting when configured', async () => {
+        mockGetConfig.mockReturnValue({
+            ...config,
+            mqtt: {
+                ...config.mqtt,
+                broker_host: 'mqtts://localhost:8883',
+                reject_unauthorized: false,
+            },
+        });
+
+        await MQTTService.getMQTT();
+
+        expect(mockConnectAsync).toHaveBeenCalledWith(
+            'mqtts://localhost:8883',
+            expect.objectContaining({
+                rejectUnauthorized: false,
+            }),
+        );
+    });
+
+    it('applies configured QoS and retain settings to camera events', async () => {
+        mockGetConfig.mockReturnValue({
+            ...config,
+            mqtt: {
+                ...config.mqtt,
+                qos: 1,
+                retain: true,
+            },
+            cameras: {
+                ...config.cameras,
+                'front-door': {
+                    hostname: '192.168.1.10',
+                    onvif_port: '80',
+                    username: 'user',
+                    password: 'password',
+                    connect: { retries: 1, delay: 100 },
+                    qos: 2,
+                    retain: true,
+                },
+            },
+        });
+
+        const service = await MQTTService.getMQTT();
+        client.publishAsync.mockClear();
+
+        await service.processEvent({
+            name: 'front-door',
+            eventTime: '2026-10-21T12:00:00.000Z',
+            eventTopic: 'Motion',
+            eventProperty: 'Changed',
+            sourceName: 'Source',
+            sourceValue: 'front-door',
+            dataName: 'State',
+            dataValue: 'true',
+        });
+
+        expect(client.publishAsync).toHaveBeenCalledWith('camera/front-door/Motion', expect.any(String), {
+            qos: 2,
+            retain: true,
+        });
+    });
+
     it('bounds offline publishes, drops the oldest when full, and flushes after reconnect', async () => {
         client.connected = false;
         const service = await MQTTService.getMQTT();
@@ -157,6 +222,7 @@ describe('MQTTService', () => {
             2,
             'camera',
             JSON.stringify({ name: 'onvif-mqtt', action: 'notify', text: 'message-1' }),
+            { qos: 0, retain: false },
         );
     });
 
@@ -196,6 +262,7 @@ describe('MQTTService', () => {
         expect(client.publishAsync).toHaveBeenCalledWith(
             'camera/front-door/Rule/Motion%2B/People%23',
             expect.any(String),
+            { qos: 0, retain: false },
         );
     });
 

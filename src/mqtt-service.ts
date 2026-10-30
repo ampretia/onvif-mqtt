@@ -2,8 +2,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import MQTT, { MqttClient } from 'mqtt';
+import MQTT, { IClientOptions, MqttClient } from 'mqtt';
 import { hostname } from 'os';
+import { readFileSync } from 'fs';
 
 import { CamEvent } from './camera';
 import { getConfig } from './config';
@@ -16,6 +17,8 @@ interface PendingPublish {
     topic: string;
     payload: string;
     attempts: number;
+    qos: 0 | 1 | 2;
+    retain: boolean;
 }
 
 interface StatusMessages {
@@ -40,13 +43,28 @@ export default class MQTTService {
             qos: configuredWill?.qos ?? 1,
             retain: configuredWill?.retain ?? true,
         };
-        const options = {
+        const tlsOptions: Partial<IClientOptions> = {};
+        if (config.mqtt.reject_unauthorized !== undefined) {
+            tlsOptions.rejectUnauthorized = config.mqtt.reject_unauthorized;
+        }
+        if (config.mqtt.ca_cert) {
+            tlsOptions.ca = readFileSync(config.mqtt.ca_cert);
+        }
+        if (config.mqtt.client_cert) {
+            tlsOptions.cert = readFileSync(config.mqtt.client_cert);
+        }
+        if (config.mqtt.client_key) {
+            tlsOptions.key = readFileSync(config.mqtt.client_key);
+        }
+
+        const options: IClientOptions = {
             username: config.mqtt.username,
             password: config.mqtt.password,
             // The PID alone is not unique (it is usually the same in every container); the hostname is.
             clientId: config.mqtt.client_id ?? `onvif-mqtt-${hostname()}-${process.pid}`,
             reconnectPeriod: 1000,
             queueQoSZero: false,
+            ...tlsOptions,
             will: {
                 topic: status.topic,
                 payload: status.offlinePayload,
@@ -95,17 +113,27 @@ export default class MQTTService {
         }
     }
 
-    private queuePublish(topic: string, payload: string): void {
+    private queuePublish(topic: string, payload: string, options: { qos?: 0 | 1 | 2; retain?: boolean } = {}): void {
         if (this._pendingPublishes.length >= MAX_PENDING_PUBLISHES) {
             const dropped = this._pendingPublishes.shift();
             logger.error({ topic: dropped?.topic }, 'Dropping oldest queued MQTT publish; queue is full');
         }
-        this._pendingPublishes.push({ topic, payload, attempts: 0 });
+        this._pendingPublishes.push({
+            topic,
+            payload,
+            attempts: 0,
+            qos: options.qos ?? 0,
+            retain: options.retain ?? false,
+        });
     }
 
     /** All publishes go through the queue so that ordering is preserved */
-    private async publish(topic: string, payload: string): Promise<void> {
-        this.queuePublish(topic, payload);
+    private async publish(
+        topic: string,
+        payload: string,
+        options?: { qos?: 0 | 1 | 2; retain?: boolean },
+    ): Promise<void> {
+        this.queuePublish(topic, payload, options);
         await this.flushPendingPublishes();
     }
 
@@ -118,7 +146,10 @@ export default class MQTTService {
                 if (!next) return;
                 let sent = false;
                 try {
-                    await this._client.publishAsync(next.topic, next.payload);
+                    await this._client.publishAsync(next.topic, next.payload, {
+                        qos: next.qos,
+                        retain: next.retain,
+                    });
                     sent = true;
                 } catch (error: unknown) {
                     next.attempts += 1;
@@ -165,7 +196,12 @@ export default class MQTTService {
         if (safeEventTopic.length === 0) return;
         const topic = `${this._topicRoot}/${name}/${safeEventTopic}`;
         logger.info(`Publishing on ${topic}`);
-        await this.publish(topic, JSON.stringify(message));
+
+        const config = getConfig();
+        const camCfg = config.cameras[name];
+        const qos = camCfg?.qos ?? config.mqtt.qos ?? 0;
+        const retain = camCfg?.retain ?? config.mqtt.retain ?? false;
+        await this.publish(topic, JSON.stringify(message), { qos, retain });
     }
 
     public async ping(version: string | number): Promise<void> {
