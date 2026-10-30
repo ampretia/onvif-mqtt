@@ -3,7 +3,6 @@ SPDX-License-Identifier: Apache-2.0
 */
 
 import { logger } from './logger';
-import chalk from 'chalk';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { createApp } from './app';
@@ -14,14 +13,14 @@ const pjson = readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8
 const version = (JSON.parse(pjson) as { version: string }).version;
 
 console.log(
-    chalk.blue.bold(`
-                    _ ____                            __  __ 
+    `
+                    _ ____                            __  __
   ____  ____ _   __(_) __/           ____ ___  ____ _/ /_/ /_
  / __ \\/ __ \\ | / / / /_   ______   / __ \`__ \\/ __ \`/ __/ __/
-/ /_/ / / / / |/ / / __/  /_____/  / / / / / / /_/ / /_/ /_  
-\\____/_/ /_/|___/_/_/             /_/ /_/ /_/\\__, /\\__/\\__/  
-                                               /_/           
-`),
+/ /_/ / / / / |/ / / __/  /_____/  / / / / / / /_/ / /_/ /_
+\\____/_/ /_/|___/_/_/             /_/ /_/ /_/\\__, /\\__/\\__/
+                                               /_/
+`,
 );
 
 const app = createApp(version);
