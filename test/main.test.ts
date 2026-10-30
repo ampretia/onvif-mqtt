@@ -21,9 +21,10 @@ jest.mock('chalk', () => ({
 const mockGetMQTT = jest.mocked(MQTTService.getMQTT);
 const mockListCameras = jest.mocked(Camera.listCameras);
 const mockGetCamera = jest.mocked(Camera.getCamera);
+type ProcessListener = (...args: unknown[]) => void;
 const processEvents = ['SIGINT', 'SIGTERM', 'unhandledRejection', 'uncaughtException'] as const;
-let listenersBefore: Map<(typeof processEvents)[number], unknown[]>;
-let exitCodeBefore: number | undefined;
+let listenersBefore: Map<(typeof processEvents)[number], ProcessListener[]>;
+let exitCodeBefore: string | number | null | undefined;
 
 describe('main startup', () => {
     beforeEach(() => {
@@ -31,16 +32,18 @@ describe('main startup', () => {
         mockGetMQTT.mockRejectedValue(new Error('MQTT unavailable'));
         mockListCameras.mockReturnValue([]);
         listenersBefore = new Map();
-        for (const event of processEvents) listenersBefore.set(event, process.listeners(event));
+        for (const event of processEvents) {
+            listenersBefore.set(event, (process.listeners as (e: string) => ProcessListener[])(event));
+        }
         exitCodeBefore = process.exitCode;
     });
 
     afterEach(() => {
         for (const event of processEvents) {
             const initialListeners = listenersBefore.get(event) ?? [];
-            for (const listener of process.listeners(event)) {
+            for (const listener of (process.listeners as (e: string) => ProcessListener[])(event)) {
                 if (!initialListeners.includes(listener)) {
-                    process.removeListener(event, listener);
+                    (process.removeListener as (e: string, fn: ProcessListener) => void)(event, listener);
                 }
             }
         }
@@ -75,9 +78,9 @@ describe('main startup', () => {
         };
         const clearInterval = jest.spyOn(global, 'clearInterval');
         const clearTimeout = jest.spyOn(global, 'clearTimeout');
-        mockGetMQTT.mockResolvedValue(service);
+        mockGetMQTT.mockResolvedValue(service as unknown as MQTTService);
         mockListCameras.mockReturnValue(['door', 'offline']);
-        mockGetCamera.mockResolvedValueOnce(camera).mockRejectedValueOnce(new Error('offline'));
+        mockGetCamera.mockResolvedValueOnce(camera as unknown as Camera).mockRejectedValueOnce(new Error('offline'));
 
         jest.isolateModules(() => {
             jest.requireActual('../src/main');
@@ -103,7 +106,7 @@ describe('main startup', () => {
         };
         const setTimeout = jest.spyOn(global, 'setTimeout');
         const setInterval = jest.spyOn(global, 'setInterval');
-        mockGetMQTT.mockResolvedValue(service);
+        mockGetMQTT.mockResolvedValue(service as unknown as MQTTService);
         mockListCameras.mockReturnValue(['door']);
         mockGetCamera.mockRejectedValue(new Error('Digest authentication failed 401'));
 
@@ -133,7 +136,7 @@ describe('main startup', () => {
             close: jest.fn().mockResolvedValue(undefined),
         };
         const setTimeout = jest.spyOn(global, 'setTimeout');
-        mockGetMQTT.mockResolvedValue(service);
+        mockGetMQTT.mockResolvedValue(service as unknown as MQTTService);
         mockListCameras.mockReturnValue(['door']);
         mockGetCamera.mockRejectedValue(new Error('offline'));
 
@@ -170,9 +173,9 @@ describe('main startup', () => {
             error: jest.fn().mockResolvedValue(undefined),
             close: jest.fn().mockResolvedValue(undefined),
         };
-        mockGetMQTT.mockResolvedValue(service);
+        mockGetMQTT.mockResolvedValue(service as unknown as MQTTService);
         mockListCameras.mockReturnValue(['door']);
-        mockGetCamera.mockResolvedValue(camera);
+        mockGetCamera.mockResolvedValue(camera as unknown as Camera);
 
         jest.isolateModules(() => {
             jest.requireActual('../src/main');
@@ -192,17 +195,13 @@ describe('main startup', () => {
     ] as const)('shuts down on %s', async (event, message) => {
         const error = new Error('process failure');
         const service = { ping: jest.fn().mockResolvedValue(undefined), close: jest.fn().mockResolvedValue(undefined) };
-        mockGetMQTT.mockResolvedValue(service);
+        mockGetMQTT.mockResolvedValue(service as unknown as MQTTService);
 
         jest.isolateModules(() => {
             jest.requireActual('../src/main');
         });
         await new Promise<void>((resolve) => setImmediate(resolve));
-        if (event === 'unhandledRejection') {
-            process.emit('unhandledRejection', error);
-        } else {
-            process.emit('uncaughtException', error, 'uncaughtException');
-        }
+        (process.emit as (event: string, ...args: unknown[]) => boolean)(event, error, 'uncaughtException');
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         expect(logger.error).toHaveBeenCalledWith({ err: error }, message);
