@@ -174,64 +174,60 @@ describe('MQTTService', () => {
             cameraRetain: false,
             expected: { qos: 0, retain: false },
         },
-    ])('preserves $name for events queued offline and sent after reconnect', async ({
-        mqttQos,
-        mqttRetain,
-        cameraQos,
-        cameraRetain,
-        expected,
-    }) => {
-        client.connected = false;
-        mockGetConfig.mockReturnValue({
-            ...config,
-            mqtt: {
-                ...config.mqtt,
-                qos: mqttQos,
-                retain: mqttRetain,
-            },
-            cameras: {
-                ...(cameraQos !== undefined || cameraRetain !== undefined
-                    ? {
-                          'front-door': {
-                              hostname: '192.168.1.10',
-                              onvif_port: '80',
-                              username: 'user',
-                              password: 'password',
-                              connect: { retries: 1, delay: 100 },
-                              ...(cameraQos !== undefined ? { qos: cameraQos } : {}),
-                              ...(cameraRetain !== undefined ? { retain: cameraRetain } : {}),
-                          },
-                      }
-                    : {}),
-            },
-        });
+    ] as const)(
+        'preserves $name for events queued offline and sent after reconnect',
+        async ({ mqttQos, mqttRetain, cameraQos, cameraRetain, expected }) => {
+            client.connected = false;
+            mockGetConfig.mockReturnValue({
+                ...config,
+                mqtt: {
+                    ...config.mqtt,
+                    qos: mqttQos,
+                    retain: mqttRetain,
+                },
+                cameras: {
+                    ...(cameraQos !== undefined || cameraRetain !== undefined
+                        ? {
+                              'front-door': {
+                                  hostname: '192.168.1.10',
+                                  onvif_port: '80',
+                                  username: 'user',
+                                  password: 'password',
+                                  connect: { retries: 1, delay: 100 },
+                                  ...(cameraQos !== undefined ? { qos: cameraQos } : {}),
+                                  ...(cameraRetain !== undefined ? { retain: cameraRetain } : {}),
+                              },
+                          }
+                        : {}),
+                },
+            });
 
-        const service = await MQTTService.getMQTT();
-        client.publishAsync.mockClear();
+            const service = await MQTTService.getMQTT();
+            client.publishAsync.mockClear();
 
-        await service.processEvent({
-            name: 'front-door',
-            eventTime: '2026-10-21T12:00:00.000Z',
-            eventTopic: 'Motion',
-            eventProperty: 'Changed',
-            sourceName: 'Source',
-            sourceValue: 'front-door',
-            dataName: 'State',
-            dataValue: 'true',
-        });
+            await service.processEvent({
+                name: 'front-door',
+                eventTime: '2026-10-21T12:00:00.000Z',
+                eventTopic: 'Motion',
+                eventProperty: 'Changed',
+                sourceName: 'Source',
+                sourceValue: 'front-door',
+                dataName: 'State',
+                dataValue: 'true',
+            });
 
-        expect(client.publishAsync).not.toHaveBeenCalled();
+            expect(client.publishAsync).not.toHaveBeenCalled();
 
-        client.connected = true;
-        client.emit('connect', { cmd: 'connack', sessionPresent: false } as unknown as import('mqtt').IConnackPacket);
-        await new Promise<void>((resolve) => setImmediate(resolve));
+            client.connected = true;
+            client.emit('connect', {
+                cmd: 'connack',
+                sessionPresent: false,
+            } as unknown as import('mqtt').IConnackPacket);
+            await new Promise<void>((resolve) => setImmediate(resolve));
 
-        expect(client.publishAsync).toHaveBeenCalledWith(
-            'camera/front-door/Motion',
-            expect.any(String),
-            expected,
-        );
-    });
+            expect(client.publishAsync).toHaveBeenCalledWith('camera/front-door/Motion', expect.any(String), expected);
+        },
+    );
 
     it('bounds offline publishes, drops the oldest when full, and flushes after reconnect', async () => {
         client.connected = false;
