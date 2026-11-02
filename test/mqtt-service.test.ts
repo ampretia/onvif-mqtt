@@ -157,25 +157,52 @@ describe('MQTTService', () => {
         );
     });
 
-    it('applies configured QoS and retain settings to camera events', async () => {
+    it.each([
+        {
+            name: 'global MQTT settings',
+            mqttQos: 1,
+            mqttRetain: true,
+            cameraQos: undefined,
+            cameraRetain: undefined,
+            expected: { qos: 1, retain: true },
+        },
+        {
+            name: 'explicit falsy camera overrides',
+            mqttQos: 2,
+            mqttRetain: true,
+            cameraQos: 0,
+            cameraRetain: false,
+            expected: { qos: 0, retain: false },
+        },
+    ])('preserves $name for events queued offline and sent after reconnect', async ({
+        mqttQos,
+        mqttRetain,
+        cameraQos,
+        cameraRetain,
+        expected,
+    }) => {
+        client.connected = false;
         mockGetConfig.mockReturnValue({
             ...config,
             mqtt: {
                 ...config.mqtt,
-                qos: 1,
-                retain: true,
+                qos: mqttQos,
+                retain: mqttRetain,
             },
             cameras: {
-                ...config.cameras,
-                'front-door': {
-                    hostname: '192.168.1.10',
-                    onvif_port: '80',
-                    username: 'user',
-                    password: 'password',
-                    connect: { retries: 1, delay: 100 },
-                    qos: 2,
-                    retain: true,
-                },
+                ...(cameraQos !== undefined || cameraRetain !== undefined
+                    ? {
+                          'front-door': {
+                              hostname: '192.168.1.10',
+                              onvif_port: '80',
+                              username: 'user',
+                              password: 'password',
+                              connect: { retries: 1, delay: 100 },
+                              ...(cameraQos !== undefined ? { qos: cameraQos } : {}),
+                              ...(cameraRetain !== undefined ? { retain: cameraRetain } : {}),
+                          },
+                      }
+                    : {}),
             },
         });
 
@@ -193,10 +220,17 @@ describe('MQTTService', () => {
             dataValue: 'true',
         });
 
-        expect(client.publishAsync).toHaveBeenCalledWith('camera/front-door/Motion', expect.any(String), {
-            qos: 2,
-            retain: true,
-        });
+        expect(client.publishAsync).not.toHaveBeenCalled();
+
+        client.connected = true;
+        client.emit('connect', { cmd: 'connack', sessionPresent: false } as unknown as import('mqtt').IConnackPacket);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(client.publishAsync).toHaveBeenCalledWith(
+            'camera/front-door/Motion',
+            expect.any(String),
+            expected,
+        );
     });
 
     it('bounds offline publishes, drops the oldest when full, and flushes after reconnect', async () => {
