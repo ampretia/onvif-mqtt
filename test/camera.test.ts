@@ -24,6 +24,34 @@ describe('Camera.getCamera', () => {
     });
 });
 
+describe('Camera.ping', () => {
+    it('succeeds when time call succeeds and no events errors occurred', async () => {
+        const cam = new EventEmitter();
+        const camera = Object.create(Camera.prototype) as Camera;
+        Object.assign(camera, {
+            _cam: cam,
+            _name: 'door',
+            _eventsErrorCount: 0,
+            getSystemDateAndTime: jest.fn().mockResolvedValue({ info: { UtcTime: '2026-10-30T12:00:00Z' } }),
+        });
+
+        await expect(camera.ping()).resolves.toBeUndefined();
+    });
+
+    it('rejects and resets error count when pull-point events error occurred', async () => {
+        const cam = new EventEmitter();
+        const camera = Object.create(Camera.prototype) as Camera;
+        Object.assign(camera, {
+            _cam: cam,
+            _name: 'door',
+            _eventsErrorCount: 2,
+            getSystemDateAndTime: jest.fn().mockResolvedValue({ info: { UtcTime: '2026-10-30T12:00:00Z' } }),
+        });
+
+        await expect(camera.ping()).rejects.toThrow('Pull-point subscription error detected; reconnecting camera');
+    });
+});
+
 describe('Camera.dispose', () => {
     it('unsubscribes, removes listeners and keeps an error sink', async () => {
         type TestCam = EventEmitter & {

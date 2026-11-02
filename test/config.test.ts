@@ -188,4 +188,27 @@ describe('loadConfig', () => {
 
         expect(config.mqtt.will?.online_payload).toBe('online');
     });
+
+    it('accepts optional QoS, retain, and TLS configuration options', () => {
+        writeConfig(
+            { door: { ...validCamera(), qos: 1, retain: true } },
+            {
+                broker_host: 'mqtts://localhost:8883',
+                qos: 2,
+                retain: true,
+                reject_unauthorized: false,
+                ca_cert: '/certs/ca.crt',
+            },
+        );
+
+        const config = loadConfig({ cwd: configRoot, env: { MQTT_PASSWORD: 'secret' } });
+
+        expect(config.mqtt.broker_host).toBe('mqtts://localhost:8883');
+        expect(config.mqtt.qos).toBe(2);
+        expect(config.mqtt.retain).toBe(true);
+        expect(config.mqtt.reject_unauthorized).toBe(false);
+        expect(config.mqtt.ca_cert).toBe('/certs/ca.crt');
+        expect(config.cameras['door']?.qos).toBe(1);
+        expect(config.cameras['door']?.retain).toBe(true);
+    });
 });

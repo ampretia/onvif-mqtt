@@ -221,9 +221,8 @@ export function createApp(version: string): App {
             void trackTask(pingAll().catch((e: unknown) => logger.error({ err: e }, 'Ping cycle failed')));
         }, PING_INTERVAL_MS);
 
-        for (const name of Camera.listCameras()) {
-            if (shuttingDown) return;
-            await connectCamera(name);
+        if (!shuttingDown) {
+            await Promise.allSettled(Camera.listCameras().map((name) => connectCamera(name)));
         }
         if (!shuttingDown) logger.info('System configured and running');
     };
