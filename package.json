@@ -53,7 +53,7 @@
   "dependencies": {
     "cosmiconfig": "^10.0.1",
     "mqtt": "^5.16.1",
-    "onvif": "0.8.3",
+    "onvif": "0.8.5",
     "pino": "^10.4.0",
     "zod": "^4.6.7"
   },
